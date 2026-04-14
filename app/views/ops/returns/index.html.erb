@@ -1,0 +1,189 @@
+<section data-controller="returns">
+  <% page_actions = capture do %>
+    <button
+      type="button"
+      class="btn btn-secondary"
+      data-action="click->returns#refresh">
+      Refresh
+    </button>
+  <% end %>
+
+  <%= render "ops/shared/page",
+    title: "Returns Management",
+    subtitle: "ติดตามสินค้า return จาก marketplace (Shopee / TikTok / Lazada)",
+    actions: page_actions do %>
+
+    <section class="panel filters-panel">
+      <div class="filters-grid">
+        <div class="field field--wide">
+          <label>Search</label>
+          <input
+            type="text"
+            placeholder="Return ID / Order ID / Tracking"
+            data-returns-target="qInput"
+            data-action="input->returns#onFilterInput">
+        </div>
+
+        <div class="field">
+          <label>Channel</label>
+          <select
+            data-returns-target="channelSelect"
+            data-action="change->returns#onFilterChange">
+            <option value="">All</option>
+            <option value="shopee">Shopee</option>
+            <option value="tiktok">TikTok</option>
+            <option value="lazada">Lazada</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Shop</label>
+          <select
+            data-returns-target="shopSelect"
+            data-action="change->returns#onFilterChange">
+            <option value="">All</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Status (Store)</label>
+          <select
+            data-returns-target="statusSelect"
+            data-action="change->returns#onFilterChange">
+            <option value="">All</option>
+            <option value="pending_scan">Pending</option>
+            <option value="partial_scanned">Partial</option>
+            <option value="received_scanned">Received</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Limit</label>
+          <select
+            data-returns-target="limitSelect"
+            data-action="change->returns#onFilterChange">
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filters-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-action="click->returns#resetFilters">
+          Reset
+        </button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__header">
+        <div>
+          <h2>Return Shipments</h2>
+          <p data-returns-target="summary">Loading...</p>
+        </div>
+      </div>
+
+      <div data-returns-target="list">
+        <div class="table-empty">Loading...</div>
+      </div>
+    </section>
+
+    <section class="panel hidden" data-returns-target="detailPanel">
+      <div class="panel__header">
+        <div>
+          <h2>Return Detail</h2>
+          <p data-returns-target="detailSummary"></p>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-action="click->returns#closeDetail">
+          Close
+        </button>
+      </div>
+
+      <div class="market-meta-grid">
+        <div class="market-meta">
+          <div class="market-meta__label">Return ID</div>
+          <div class="market-meta__value" data-returns-target="detailReturnId"></div>
+        </div>
+
+        <div class="market-meta">
+          <div class="market-meta__label">Order ID</div>
+          <div class="market-meta__value" data-returns-target="detailOrderId"></div>
+        </div>
+
+        <div class="market-meta">
+          <div class="market-meta__label">Buyer</div>
+          <div class="market-meta__value" data-returns-target="detailBuyer"></div>
+        </div>
+
+        <div class="market-meta">
+          <div class="market-meta__label">Store Status</div>
+          <div class="market-meta__value" data-returns-target="detailStoreStatus"></div>
+        </div>
+
+        <div class="market-meta">
+          <div class="market-meta__label">Marketplace Status</div>
+          <div class="market-meta__value" data-returns-target="detailMarketplaceStatus"></div>
+        </div>
+
+        <div class="market-meta">
+          <div class="market-meta__label">Carrier</div>
+          <div class="market-meta__value" data-returns-target="detailCarrier"></div>
+        </div>
+
+        <div class="market-meta">
+          <div class="market-meta__label">Tracking</div>
+          <div class="market-meta__value" data-returns-target="detailTracking"></div>
+        </div>
+
+        <div class="market-meta market-meta--wide">
+          <div class="market-meta__label">Shipment Status</div>
+          <div class="market-meta__value" data-returns-target="detailShipmentHint"></div>
+        </div>
+      </div>
+
+      <div class="pos-summary" style="margin-top: 16px;">
+        <strong data-returns-target="detailQtySummary"></strong>
+      </div>
+
+      <div class="pos-field" style="margin-top: 16px;">
+        <label>Scan Barcode / SKU Code</label>
+        <input
+          type="text"
+          placeholder="ยิง Barcode หรือพิมพ์ SKU Code แล้วกด Enter"
+          data-returns-target="scanInput"
+          data-action="keydown->returns#onScanKeydown">
+        <p class="pos-field__hint" data-returns-target="scanHint"></p>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 16px;">
+        <table class="pos-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Barcode / Scan Input</th>
+              <th class="th-center">Requested</th>
+              <th class="th-center">Scanned</th>
+              <th class="th-center">Pending</th>
+              <th class="th-center">Status</th>
+            </tr>
+          </thead>
+
+          <tbody data-returns-target="detailLines">
+            <tr>
+              <td colspan="6" class="table-empty">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  <% end %>
+</section>

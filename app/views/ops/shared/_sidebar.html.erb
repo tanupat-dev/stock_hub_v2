@@ -1,0 +1,18 @@
+<aside class="ops-sidebar">
+  <div class="ops-sidebar__brand">
+    <div class="ops-sidebar__logo">S</div>
+
+    <div>
+      <div class="ops-sidebar__title">StockHub V2</div>
+      <div class="ops-sidebar__subtitle">Seller Center</div>
+    </div>
+  </div>
+
+  <nav class="ops-sidebar__nav">
+    <% ops_nav_items.each do |item| %>
+      <%= link_to item[:label],
+                  item[:path],
+                  class: "ops-nav-link #{'is-active' if active_ops_nav?(item[:key])}" %>
+    <% end %>
+  </nav>
+</aside>

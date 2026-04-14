@@ -1,0 +1,211 @@
+<section
+  class="ops-page shopee-excel-page"
+  data-controller="shopee-excel"
+  data-shopee-excel-shop-id-value="<%= Shop.find_by(channel: "shopee")&.id %>"
+>
+  <header class="page-header">
+    <div>
+      <h1>Shopee Import / Export</h1>
+      <p>Upload orders และ export stock ผ่าน Excel</p>
+    </div>
+  </header>
+
+  <div class="page-body">
+    <section class="panel">
+      <div class="panel__header">
+        <div>
+          <h2>Import Orders</h2>
+          <p>อัปโหลดไฟล์ order จาก Shopee</p>
+        </div>
+      </div>
+
+      <div class="shopee-excel-form">
+        <div class="shopee-file-box">
+          <input
+            id="shopee_order_file"
+            type="file"
+            accept=".xlsx"
+            class="shopee-file-input"
+            data-shopee-excel-target="importFileInput"
+            data-action="change->shopee-excel#importFileChanged"
+          >
+
+          <label
+            for="shopee_order_file"
+            class="shopee-file-picker"
+            data-shopee-excel-target="importFilePicker"
+          >
+            <div class="shopee-file-picker__title">Choose order file</div>
+            <div class="shopee-file-picker__name" data-shopee-excel-target="importFileName">
+              No file selected
+            </div>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            data-shopee-excel-target="importButton"
+            data-action="click->shopee-excel#uploadOrders"
+          >
+            Upload
+          </button>
+        </div>
+
+        <div
+          class="form-message is-hidden"
+          data-shopee-excel-target="importMessage"
+        ></div>
+
+        <div
+          class="shopee-result-card is-hidden"
+          data-shopee-excel-target="importSummary"
+        >
+          <div class="shopee-result-grid">
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Total rows</span>
+              <strong data-shopee-excel-target="importTotalRows">0</strong>
+            </div>
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Success rows</span>
+              <strong data-shopee-excel-target="importSuccessRows">0</strong>
+            </div>
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Failed rows</span>
+              <strong data-shopee-excel-target="importFailedRows">0</strong>
+            </div>
+          </div>
+
+          <pre
+            class="shopee-result-error is-hidden"
+            data-shopee-excel-target="importErrorSummary"
+          ></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__header">
+        <div>
+          <h2>Import Returns</h2>
+          <p>อัปโหลดไฟล์ return จาก Shopee</p>
+        </div>
+      </div>
+
+      <div class="shopee-excel-form">
+        <div class="shopee-file-box">
+          <input
+            id="shopee_return_file"
+            type="file"
+            accept=".xlsx"
+            class="shopee-file-input"
+            data-shopee-excel-target="returnFileInput"
+            data-action="change->shopee-excel#returnFileChanged"
+          >
+
+          <label
+            for="shopee_return_file"
+            class="shopee-file-picker"
+            data-shopee-excel-target="returnFilePicker"
+          >
+            <div class="shopee-file-picker__title">Choose return file</div>
+            <div class="shopee-file-picker__name" data-shopee-excel-target="returnFileName">
+              No file selected
+            </div>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            data-shopee-excel-target="returnButton"
+            data-action="click->shopee-excel#uploadReturns"
+          >
+            Upload Returns
+          </button>
+        </div>
+
+        <div
+          class="form-message is-hidden"
+          data-shopee-excel-target="returnMessage"
+        ></div>
+
+        <div
+          class="shopee-result-card is-hidden"
+          data-shopee-excel-target="returnSummary"
+        >
+          <div class="shopee-result-grid">
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Total rows</span>
+              <strong data-shopee-excel-target="returnTotalRows">0</strong>
+            </div>
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Success rows</span>
+              <strong data-shopee-excel-target="returnSuccessRows">0</strong>
+            </div>
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Failed rows</span>
+              <strong data-shopee-excel-target="returnFailedRows">0</strong>
+            </div>
+          </div>
+
+          <pre
+            class="shopee-result-error is-hidden"
+            data-shopee-excel-target="returnErrorSummary"
+          ></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__header">
+        <div>
+          <h2>Export Stock</h2>
+          <p>อัปโหลด template แล้วดาวน์โหลดไฟล์ stock ที่เติมข้อมูลแล้ว</p>
+        </div>
+      </div>
+
+      <div class="shopee-excel-form">
+        <div class="shopee-file-box">
+          <input
+            id="shopee_stock_template"
+            type="file"
+            accept=".xlsx"
+            class="shopee-file-input"
+            data-shopee-excel-target="exportFileInput"
+            data-action="change->shopee-excel#exportFileChanged"
+          >
+
+          <label
+            for="shopee_stock_template"
+            class="shopee-file-picker"
+            data-shopee-excel-target="exportFilePicker"
+          >
+            <div class="shopee-file-picker__title">Choose stock template</div>
+            <div class="shopee-file-picker__name" data-shopee-excel-target="exportFileName">
+              No file selected
+            </div>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            data-shopee-excel-target="exportButton"
+            data-action="click->shopee-excel#exportStock"
+          >
+            Export Current Stock
+          </button>
+        </div>
+
+        <div
+          class="form-message is-hidden"
+          data-shopee-excel-target="exportMessage"
+        ></div>
+      </div>
+    </section>
+  </div>
+</section>

@@ -1,0 +1,163 @@
+<section data-controller="product-management">
+  <% page_actions = capture do %>
+    <button
+      type="button"
+      class="btn btn-secondary"
+      data-action="click->product-management#openImportModal">
+      Import SKU CSV
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-secondary"
+      data-action="click->product-management#refreshAll">
+      Refresh
+    </button>
+  <% end %>
+
+  <%= render "ops/shared/page",
+             title: "Product Management",
+             subtitle: "ค้นหา SKU, ดูสต็อกกลาง, ปรับสต็อก และเปิด ledger",
+             page_class: "ops-page--products",
+             actions: page_actions do %>
+    <section>
+      <section class="panel filters-panel">
+        <div class="filters-grid">
+          <div class="field field--wide">
+            <label for="sku_q">Search</label>
+            <input
+              id="sku_q"
+              type="text"
+              placeholder="Search here..."
+              data-product-management-target="qInput"
+              data-action="input->product-management#onFilterInput">
+          </div>
+
+          <div class="field">
+            <label for="sku_brand">Brand</label>
+            <select
+              id="sku_brand"
+              data-product-management-target="brandSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All brands</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_model">Model</label>
+            <select
+              id="sku_model"
+              data-product-management-target="modelSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All models</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_color">Color</label>
+            <select
+              id="sku_color"
+              data-product-management-target="colorSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All colors</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_size">Size</label>
+            <select
+              id="sku_size"
+              data-product-management-target="sizeSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All sizes</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_limit">Limit</label>
+            <select
+              id="sku_limit"
+              data-product-management-target="limitSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_status">Status</label>
+            <select
+              id="sku_status"
+              data-product-management-target="statusSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="active" selected>Active only</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_risk_filter">Inventory filter</label>
+            <select
+              id="sku_risk_filter"
+              data-product-management-target="riskFilterSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="all" selected>All inventory</option>
+              <option value="frozen">Frozen only</option>
+              <option value="risky">Risky only</option>
+              <option value="zero_online">Zero online only</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filters-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->product-management#resetFilters">
+            Reset
+          </button>
+        </div>
+      </section>
+
+      <section class="panel panel--table">
+        <div class="panel__header">
+          <div>
+            <h2>SKU List</h2>
+            <p data-product-management-target="resultSummary">Loading...</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="sku-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>TikTok 1</th>
+                <th>TikTok 2</th>
+                <th>Lazada 1</th>
+                <th>Lazada 2</th>
+                <th>Shopee</th>
+                <th class="th-center">Store Available</th>
+                <th class="th-center">Online Available</th>
+                <th class="th-center">Buffer</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody data-product-management-target="tableBody">
+              <tr>
+                <td colspan="11" class="table-empty">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <%= render "ops/products/ledger_drawer" %>
+      <%= render "ops/products/adjust_modal" %>
+      <%= render "ops/products/import_modal" %>
+    </section>
+  <% end %>
+</section>

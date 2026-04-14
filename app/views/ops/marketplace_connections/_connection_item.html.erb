@@ -1,0 +1,40 @@
+<article class="connection-item" id="marketplace-shop-<%= shop.id %>">
+  <div class="connection-item__top">
+    <div class="connection-item__identity">
+      <div class="connection-item__title"><%= shop.name.presence || shop.shop_code %></div>
+      <div class="connection-item__subtitle"><%= shop.shop_code %></div>
+    </div>
+
+    <div class="connection-item__status">
+      <span class="status-pill <%= status_class %>"><%= status_label %></span>
+    </div>
+  </div>
+
+  <div class="connection-item__details">
+    <div class="connection-detail">
+      <span class="connection-detail__label">App</span>
+      <span class="connection-detail__value"><%= app_code.presence || "-" %></span>
+    </div>
+
+    <div class="connection-detail">
+      <span class="connection-detail__label">Credential</span>
+      <span class="connection-detail__value"><%= credential_label %></span>
+    </div>
+  </div>
+
+  <div class="connection-item__actions">
+    <a href="<%= reconnect_path %>" class="ui-button ui-button--secondary">
+      Reconnect
+    </a>
+
+    <button
+      type="button"
+      class="ui-button ui-button--danger"
+      data-shop-id="<%= shop.id %>"
+      data-shop-name="<%= shop.name.presence || shop.shop_code %>"
+      data-action="click->marketplace-connections#deleteConnection"
+    >
+      Delete
+    </button>
+  </div>
+</article>

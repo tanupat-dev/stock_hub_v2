@@ -1,0 +1,58 @@
+default: &default
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+
+development:
+  <<: *default
+  workers:
+    - queues: "poll_orders"
+      threads: 2
+      processes: 1
+      polling_interval: 0.1
+
+    - queues: "sync_stock"
+      threads: 2
+      processes: 1
+      polling_interval: 0.1
+
+    - queues: "reconcile"
+      threads: 1
+      processes: 1
+      polling_interval: 0.2
+
+    - queues: "default"
+      threads: 1
+      processes: 1
+      polling_interval: 0.1
+
+test:
+  <<: *default
+  workers:
+    - queues: "*"
+      threads: 1
+      processes: 1
+      polling_interval: 0.1
+
+production:
+  <<: *default
+  workers:
+    - queues: "poll_orders"
+      threads: <%= ENV.fetch("JOB_THREADS_POLL_ORDERS", 2) %>
+      processes: <%= ENV.fetch("JOB_PROCESSES_POLL_ORDERS", 1) %>
+      polling_interval: 0.1
+
+    - queues: "sync_stock"
+      threads: <%= ENV.fetch("JOB_THREADS_SYNC_STOCK", 2) %>
+      processes: <%= ENV.fetch("JOB_PROCESSES_SYNC_STOCK", 1) %>
+      polling_interval: 0.1
+
+    - queues: "reconcile"
+      threads: <%= ENV.fetch("JOB_THREADS_RECONCILE", 1) %>
+      processes: <%= ENV.fetch("JOB_PROCESSES_RECONCILE", 1) %>
+      polling_interval: 0.2
+
+    - queues: "default"
+      threads: <%= ENV.fetch("JOB_THREADS_DEFAULT", 1) %>
+      processes: <%= ENV.fetch("JOB_PROCESSES_DEFAULT", 1) %>
+      polling_interval: 0.1

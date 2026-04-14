@@ -1,0 +1,86 @@
+<article class="marketplace-card">
+  <div class="marketplace-card__header">
+    <div>
+      <h2 class="marketplace-card__title">Connect Lazada Shop</h2>
+      <p class="marketplace-card__subtitle">
+        Use the app credentials and seller identifier for this specific in-house Lazada shop.
+      </p>
+    </div>
+  </div>
+
+  <form
+    class="connection-form"
+    data-action="submit->marketplace-connections#submitLazada"
+  >
+    <div
+      class="form-alert is-hidden"
+      data-marketplace-connections-target="lazadaError"
+    ></div>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label" for="lazada_shop_name">Shop Name</label>
+        <input
+          id="lazada_shop_name"
+          name="shop_name"
+          type="text"
+          class="form-input"
+          placeholder="e.g. Lazada Main Shop"
+          data-marketplace-connections-target="lazadaShopName"
+        >
+      </div>
+
+      <div class="form-field">
+        <label class="form-label" for="lazada_seller_id">Seller ID / Short Code</label>
+        <input
+          id="lazada_seller_id"
+          name="seller_id"
+          type="text"
+          class="form-input"
+          placeholder="Enter seller ID or short code"
+          data-marketplace-connections-target="lazadaSellerId"
+          required
+        >
+        <div class="form-help">
+          Use the identifier tied to this Lazada developer setup.
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label" for="lazada_app_key">App Key</label>
+        <input
+          id="lazada_app_key"
+          name="app_key"
+          type="text"
+          class="form-input"
+          placeholder="Enter Lazada app key"
+          data-marketplace-connections-target="lazadaAppKey"
+          required
+        >
+      </div>
+
+      <div class="form-field">
+        <label class="form-label" for="lazada_app_secret">App Secret</label>
+        <input
+          id="lazada_app_secret"
+          name="app_secret"
+          type="password"
+          class="form-input"
+          placeholder="Enter Lazada app secret"
+          data-marketplace-connections-target="lazadaAppSecret"
+          required
+        >
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button
+        type="submit"
+        class="ui-button ui-button--primary"
+        data-marketplace-connections-target="lazadaSubmitButton"
+      >
+        Connect Lazada
+      </button>
+    </div>
+  </form>
+</article>

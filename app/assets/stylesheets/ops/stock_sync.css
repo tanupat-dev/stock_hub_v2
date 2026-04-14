@@ -1,0 +1,250 @@
+.stock-sync-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.stock-sync-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.stock-sync-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.stock-sync-card__header h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.stock-sync-card__header p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.stock-sync-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stock-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.stock-sync-badge--green {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.stock-sync-badge--gray {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.stock-sync-badge--blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.stock-sync-prefix-form {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.stock-sync-prefix-form__input {
+  flex: 1 1 auto;
+  min-width: 240px;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.stock-sync-prefix-form__input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.stock-sync-prefix-empty {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.stock-sync-prefix-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stock-sync-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+}
+
+.stock-sync-chip__text {
+  color: #0f172a;
+}
+
+.stock-sync-chip__remove {
+  border: none;
+  background: transparent;
+  color: #ef4444;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.stock-sync-shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px;
+}
+
+.stock-sync-shop-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+  background: #fff;
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stock-sync-shop-card.is-inactive {
+  background: #fafafa;
+}
+
+.stock-sync-shop-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stock-sync-shop-card__title {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stock-sync-shop-card__channel {
+  margin-top: 4px;
+  color: #64748b;
+  text-transform: lowercase;
+  font-size: 14px;
+}
+
+.stock-sync-shop-card__meta-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stock-sync-shop-card__meta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stock-sync-shop-card__meta--active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.stock-sync-shop-card__meta--inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.stock-sync-shop-card__hint {
+  color: #64748b;
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.stock-sync-shop-card__error {
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.4;
+  min-height: 18px;
+}
+
+.stock-sync-shop-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.stock-sync-toast {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+.stock-sync-toast--success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.stock-sync-toast--error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.stock-sync-toast--info {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.stock-sync-toast--warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.hidden {
+  display: none !important;
+}

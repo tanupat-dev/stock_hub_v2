@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>StockHub V2</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <meta name="pos-key" content="<%= ENV.fetch("POS_API_KEY", "dev_pos_key_1") %>">
+
+   <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/shell", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/shared", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/products", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/orders", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/marketplace_connections", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/shopee", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/pos_cashier", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/barcode_bindings", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/returns", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "ops/stock_sync", "data-turbo-track": "reload" %>
+        <%= javascript_importmap_tags %>
+  </head>
+
+  <body>
+    <div class="ops-shell">
+      <%= render "ops/shared/sidebar" %>
+
+      <main class="ops-main">
+        <%= yield %>
+      </main>
+    </div>
+  </body>
+</html>

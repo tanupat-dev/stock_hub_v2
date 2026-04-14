@@ -1,0 +1,527 @@
+<div class="ops-shell" data-controller="product-management order-management">
+  <aside class="ops-sidebar">
+    <div class="ops-sidebar__brand">
+      <div class="ops-sidebar__logo">S</div>
+      <div>
+        <div class="ops-sidebar__title">StockHub V2</div>
+        <div class="ops-sidebar__subtitle">Seller Center</div>
+      </div>
+    </div>
+
+    <nav class="ops-sidebar__nav">
+      <a href="#" class="ops-nav-link">Dashboard</a>
+      <a href="#" class="ops-nav-link" data-action="click->order-management#showPage">Order Management</a>
+      <a href="#" class="ops-nav-link is-active" data-action="click->order-management#hidePage">Product Management</a>
+      <a href="#" class="ops-nav-link">POS Sale</a>
+      <a href="#" class="ops-nav-link">POS Return</a>
+      <a href="#" class="ops-nav-link">Stock In / Adjust</a>
+      <a href="#" class="ops-nav-link">Stock Count</a>
+      <a href="#" class="ops-nav-link">Sales History</a>
+      <a href="#" class="ops-nav-link">Exchange</a>
+      <a href="#" class="ops-nav-link">Shopee Excel</a>
+      <a href="#" class="ops-nav-link">Channels</a>
+      <a href="#" class="ops-nav-link">SKU Ledger</a>
+    </nav>
+  </aside>
+
+  <main class="ops-main">
+    <section data-order-management-target="productPage">
+      <header class="page-header">
+        <div>
+          <h1>Product Management</h1>
+          <p>ค้นหา SKU, ดูสต็อกกลาง, ปรับสต็อก และเปิดประวัติการเคลื่อนไหว</p>
+        </div>
+
+        <div class="page-header__actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->product-management#openImportModal">
+            Import SKU CSV
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->product-management#refreshAll">
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <section class="panel filters-panel">
+        <div class="filters-grid">
+          <div class="field field--wide">
+            <label for="sku_q">Search</label>
+            <input
+              id="sku_q"
+              type="text"
+              placeholder="Search here..."
+              data-product-management-target="qInput"
+              data-action="input->product-management#onFilterInput">
+          </div>
+
+          <div class="field">
+            <label for="sku_brand">Brand</label>
+            <select
+              id="sku_brand"
+              data-product-management-target="brandSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All brands</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_model">Model</label>
+            <select
+              id="sku_model"
+              data-product-management-target="modelSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All models</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_color">Color</label>
+            <select
+              id="sku_color"
+              data-product-management-target="colorSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All colors</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_size">Size</label>
+            <select
+              id="sku_size"
+              data-product-management-target="sizeSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="">All sizes</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_limit">Limit</label>
+            <select
+              id="sku_limit"
+              data-product-management-target="limitSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sku_status">Status</label>
+            <select
+              id="sku_status"
+              data-product-management-target="statusSelect"
+              data-action="change->product-management#onFilterChange">
+              <option value="active" selected>Active only</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filters-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->product-management#resetFilters">
+            Reset
+          </button>
+        </div>
+      </section>
+
+      <section class="panel panel--table">
+        <div class="panel__header">
+          <div>
+            <h2>SKU List</h2>
+            <p data-product-management-target="resultSummary">Loading...</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="sku-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>TikTok 1</th>
+                <th>TikTok 2</th>
+                <th>Lazada 1</th>
+                <th>Lazada 2</th>
+                <th>Shopee</th>
+                <th class="th-center">Store Available</th>
+                <th class="th-center">Online Available</th>
+                <th class="th-center">Buffer</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody data-product-management-target="tableBody">
+              <tr>
+                <td colspan="11" class="table-empty">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="hidden" data-order-management-target="orderPage">
+      <header class="page-header">
+        <div>
+          <h1>Order Management</h1>
+          <p>รวมออเดอร์จากทุกช่องทางออนไลน์และหน้าร้าน</p>
+        </div>
+
+        <div class="page-header__actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-order-management-target="exportButton"
+            data-action="click->order-management#exportOrders">
+            Export Shipping Excel
+          </button>
+
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-order-management-target="exportPackingButton"
+              data-action="click->order-management#exportPacking">
+              Export Packing List
+            </button>
+
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->order-management#refreshOrders">
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <section class="panel filters-panel">
+        <div class="filters-grid filters-grid--orders">
+          <div class="field field--wide">
+            <label for="order_q">Search</label>
+            <input
+              id="order_q"
+              type="text"
+              placeholder="ค้นหา order no / sku / barcode"
+              data-order-management-target="qInput"
+              data-action="input->order-management#onFilterInput">
+          </div>
+
+            <div class="field">
+            <label for="order_status">Status</label>
+            <select
+                id="order_status"
+                data-order-management-target="statusSelect"
+                data-action="change->order-management#onFilterChange">
+                <option value="">All status</option>
+                <option value="pending">pending</option>
+                <option value="awaiting_shipment">awaiting_shipment</option>
+                <option value="in_transit">in_transit</option>
+                <option value="cancelled">cancelled</option>
+                <option value="delivered">delivered</option>
+                <option value="completed">completed</option>
+            </select>
+            </div>
+
+          <div class="field">
+            <label for="order_shop">Shop</label>
+            <select
+              id="order_shop"
+              data-order-management-target="shopSelect"
+              data-action="change->order-management#onFilterChange">
+              <option value="">All shops</option>
+              <option value="TikTok 1">TikTok 1</option>
+              <option value="TikTok 2">TikTok 2</option>
+              <option value="Lazada 1">Lazada 1</option>
+              <option value="Lazada 2">Lazada 2</option>
+              <option value="Shopee">Shopee</option>
+              <option value="POS">POS</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="order_date_from">Date from</label>
+            <input
+              id="order_date_from"
+              type="date"
+              data-order-management-target="dateFromInput"
+              data-action="change->order-management#onFilterChange">
+          </div>
+
+          <div class="field">
+            <label for="order_date_to">Date to</label>
+            <input
+              id="order_date_to"
+              type="date"
+              data-order-management-target="dateToInput"
+              data-action="change->order-management#onFilterChange">
+          </div>
+
+          <div class="field">
+            <label for="order_limit">Limit</label>
+            <select
+              id="order_limit"
+              data-order-management-target="limitSelect"
+              data-action="change->order-management#onFilterChange">
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filters-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->order-management#resetFilters">
+            Reset
+          </button>
+        </div>
+      </section>
+
+      <section class="panel panel--table">
+        <div class="panel__header">
+          <div>
+            <h2>Orders</h2>
+            <p data-order-management-target="resultSummary">Loading...</p>
+          </div>
+        </div>
+
+        <div
+          class="order-list"
+          data-order-management-target="orderList">
+          <div class="table-empty">Loading...</div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <section
+    class="ledger-drawer"
+    data-product-management-target="ledgerDrawer">
+    <div class="ledger-drawer__header">
+      <div>
+        <h2>SKU Ledger</h2>
+        <p data-product-management-target="ledgerSkuSummary">No SKU selected</p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-btn"
+        data-action="click->product-management#closeLedger">
+        ✕
+      </button>
+    </div>
+
+    <div class="ledger-drawer__body">
+      <div
+        class="ledger-empty"
+        data-product-management-target="ledgerEmpty">
+        เลือก SKU เพื่อดูประวัติการเคลื่อนไหว
+      </div>
+
+      <div
+        class="ledger-list"
+        data-product-management-target="ledgerList">
+      </div>
+    </div>
+  </section>
+
+  <div
+    class="modal-backdrop hidden"
+    data-product-management-target="modalBackdrop"
+    data-action="click->product-management#closeAdjustModal">
+  </div>
+
+  <section
+    class="modal hidden"
+    data-product-management-target="adjustModal">
+    <div class="modal__header">
+      <div>
+        <h2>Adjust Stock</h2>
+        <p data-product-management-target="adjustSkuSummary">No SKU selected</p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-btn"
+        data-action="click->product-management#closeAdjustModal">
+        ✕
+      </button>
+    </div>
+
+    <div class="modal__body">
+      <form data-action="submit->product-management#submitAdjust">
+        <input type="hidden" data-product-management-target="adjustSkuId">
+
+        <div class="field">
+          <label for="adjust_mode">Mode</label>
+          <select
+            id="adjust_mode"
+            data-product-management-target="adjustMode"
+            data-action="change->product-management#onAdjustModeChange">
+            <option value="stock_in">Receive stock</option>
+            <option value="adjust_delta">Adjust by delta</option>
+            <option value="adjust_set">Set exact stock</option>
+          </select>
+        </div>
+
+        <div class="field" data-product-management-target="quantityField">
+          <label for="adjust_quantity">Quantity</label>
+          <input
+            id="adjust_quantity"
+            type="number"
+            min="1"
+            value="1"
+            data-product-management-target="quantityInput">
+        </div>
+
+        <div class="field hidden" data-product-management-target="deltaField">
+          <label for="adjust_delta">Delta</label>
+          <input
+            id="adjust_delta"
+            type="number"
+            value="0"
+            data-product-management-target="deltaInput">
+        </div>
+
+        <div class="field hidden" data-product-management-target="setToField">
+          <label for="adjust_set_to">Set to</label>
+          <input
+            id="adjust_set_to"
+            type="number"
+            min="0"
+            value="0"
+            data-product-management-target="setToInput">
+        </div>
+
+        <div class="field">
+          <label for="adjust_reason">Reason</label>
+          <input
+            id="adjust_reason"
+            type="text"
+            placeholder="เช่น receive_supplier, damage, recount"
+            data-product-management-target="reasonInput">
+        </div>
+
+        <div class="field">
+          <label for="adjust_note">Note</label>
+          <textarea
+            id="adjust_note"
+            rows="3"
+            placeholder="รายละเอียดเพิ่มเติม"
+            data-product-management-target="noteInput"></textarea>
+        </div>
+
+        <div
+          class="form-message hidden"
+          data-product-management-target="adjustMessage">
+        </div>
+
+        <div class="modal__actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->product-management#closeAdjustModal">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary">
+            Confirm
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div
+    class="modal-backdrop hidden"
+    data-product-management-target="importModalBackdrop"
+    data-action="click->product-management#closeImportModal">
+  </div>
+
+  <section
+    class="modal hidden"
+    data-product-management-target="importModal">
+    <div class="modal__header">
+      <div>
+        <h2>Import SKU CSV</h2>
+        <p>CSV only • Required columns: sku, brand, model, color, size</p>
+      </div>
+
+      <button
+        type="button"
+        class="icon-btn"
+        data-action="click->product-management#closeImportModal">
+        ✕
+      </button>
+    </div>
+
+    <div class="modal__body modal__body--compact">
+      <div class="import-upload-box">
+        <label
+          for="sku_import_file"
+          class="import-file-picker"
+          data-product-management-target="importFilePicker">
+          <div class="import-file-picker__icon">📄</div>
+          <div class="import-file-picker__content">
+            <div
+              class="import-file-picker__title"
+              data-product-management-target="importSelectedFileTitle">
+              Choose CSV file
+            </div>
+            <div
+              class="import-file-picker__subtitle"
+              data-product-management-target="importSelectedFileMeta">
+              CSV only
+            </div>
+          </div>
+          <div class="import-file-picker__button">Choose File</div>
+        </label>
+
+        <input
+          id="sku_import_file"
+          class="import-file-input"
+          type="file"
+          accept=".csv,text/csv"
+          data-product-management-target="importFileInput"
+          data-action="change->product-management#onImportFileChange">
+      </div>
+
+      <div
+        class="form-message hidden"
+        data-product-management-target="importMessage">
+      </div>
+
+      <div
+        class="import-result import-result--compact hidden"
+        data-product-management-target="importResult">
+      </div>
+
+      <div class="modal__actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-action="click->product-management#closeImportModal">
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          data-product-management-target="importSubmitButton"
+          data-action="click->product-management#submitImport">
+          Upload CSV
+        </button>
+      </div>
+    </div>
+  </section>
+</div>

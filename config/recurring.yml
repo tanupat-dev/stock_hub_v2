@@ -1,0 +1,139 @@
+production:
+  clear_solid_queue_finished_jobs:
+    command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
+    schedule: every hour at minute 12
+
+<% if ENV["ENABLE_POLL_ORDERS"] == "true" %>
+  poll_tiktok_all_shops:
+    class: PollTiktokAllShopsJob
+    queue: poll_orders
+    args: []
+    schedule: every 30 seconds
+
+  poll_lazada_all_shops:
+    class: PollLazadaAllShopsJob
+    queue: poll_orders
+    args: []
+    schedule: every 2 minutes
+<% end %>
+
+<% if ENV["ENABLE_RECONCILE"] == "true" %>
+  inventory_reconcile_all_shops:
+    class: InventoryReconcileAllShopsJob
+    queue: reconcile
+    args:
+      - { fresh_within: 21600, push_limit: 100 }
+    schedule: every 10 minutes
+<% end %>
+
+<% if ENV["ENABLE_POLL_RETURNS"] == "true" %>
+  poll_tiktok_all_shops_returns:
+    class: PollTiktokAllShopsReturnsJob
+    queue: poll_orders
+    args: []
+    schedule: every 1 minute
+
+  poll_lazada_all_shops_returns:
+    class: PollLazadaAllShopsReturnsJob
+    queue: poll_orders
+    args: []
+    schedule: every 2 minutes
+<% end %>
+
+<% if ENV["ENABLE_CATALOG_SYNC"] == "true" %>
+  poll_tiktok_all_shops_catalog:
+    class: PollTiktokAllShopsCatalogJob
+    queue: default
+    args:
+      - {
+          enqueue_sync_stock: false,
+          enqueue_sync_sku_master: true,
+          dry_run: false,
+          resume: true,
+          max_pages: 200,
+          page_size: 50,
+        }
+    schedule: every 30 minutes
+
+  poll_lazada_all_shops_catalog:
+    class: PollLazadaAllShopsCatalogJob
+    queue: default
+    args:
+      - { filter: "all", limit: 20, max_pages: 200, full: false }
+    schedule: every 30 minutes
+<% end %>
+
+  cleanup_stock_sync_requests:
+    class: CleanupStockSyncRequestsJob
+    queue: default
+    args:
+      - {
+          delete_processed_older_than: 604800,
+          delete_failed_older_than: 1209600,
+          stale_processing_older_than: 1800,
+        }
+    schedule: every 1 hour
+
+development:
+  poll_tiktok_all_shops:
+    class: PollTiktokAllShopsJob
+    queue: poll_orders
+    args: []
+    schedule: every 5 minutes
+
+  poll_lazada_all_shops:
+    class: PollLazadaAllShopsJob
+    queue: poll_orders
+    args: []
+    schedule: every 10 minutes
+
+  inventory_reconcile_all_shops:
+    class: InventoryReconcileAllShopsJob
+    queue: reconcile
+    args:
+      - { fresh_within: 604800, push_limit: 30 }
+    schedule: every 30 minutes
+
+  poll_tiktok_all_shops_returns:
+    class: PollTiktokAllShopsReturnsJob
+    queue: poll_orders
+    args: []
+    schedule: every 5 minutes
+
+  poll_lazada_all_shops_returns:
+    class: PollLazadaAllShopsReturnsJob
+    queue: poll_orders
+    args: []
+    schedule: every 10 minutes
+
+  poll_tiktok_all_shops_catalog:
+    class: PollTiktokAllShopsCatalogJob
+    queue: default
+    args:
+      - {
+          enqueue_sync_stock: false,
+          enqueue_sync_sku_master: true,
+          dry_run: false,
+          resume: true,
+          max_pages: 50,
+          page_size: 50,
+        }
+    schedule: every 1 hour
+
+  poll_lazada_all_shops_catalog:
+    class: PollLazadaAllShopsCatalogJob
+    queue: default
+    args:
+      - { filter: "all", limit: 20, max_pages: 50, full: false }
+    schedule: every 1 hour
+
+  cleanup_stock_sync_requests:
+    class: CleanupStockSyncRequestsJob
+    queue: default
+    args:
+      - {
+          delete_processed_older_than: 259200,
+          delete_failed_older_than: 604800,
+          stale_processing_older_than: 1800,
+        }
+    schedule: every 2 hours

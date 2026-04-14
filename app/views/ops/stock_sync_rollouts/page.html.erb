@@ -1,0 +1,123 @@
+<section data-controller="stock-sync">
+  <% page_actions = capture do %>
+    <button
+      class="btn btn-secondary"
+      data-stock-sync-target="refreshButton"
+      data-action="click->stock-sync#refresh">
+      Refresh
+    </button>
+  <% end %>
+
+  <%= render "ops/shared/page",
+    title: "Stock Sync Settings",
+    subtitle: "Control rollout (global / shop / prefix)",
+    actions: page_actions do %>
+
+    <div class="stock-sync-page">
+      <div
+        class="stock-sync-toast hidden"
+        data-stock-sync-target="toast"></div>
+
+      <section class="stock-sync-card">
+        <div class="stock-sync-card__header">
+          <div>
+            <h2>Global Sync</h2>
+            <p>Master switch for marketplace stock push.</p>
+          </div>
+
+          <div
+            class="stock-sync-badge stock-sync-badge--gray"
+            data-stock-sync-target="globalStatus">
+            Loading...
+          </div>
+        </div>
+
+        <div class="stock-sync-card__actions">
+          <button
+            class="btn btn-primary"
+            data-stock-sync-target="enableGlobalButton"
+            data-action="click->stock-sync#enableGlobal">
+            Enable
+          </button>
+
+          <button
+            class="btn btn-danger"
+            data-stock-sync-target="disableGlobalButton"
+            data-action="click->stock-sync#disableGlobal">
+            Disable
+          </button>
+        </div>
+      </section>
+
+      <section class="stock-sync-card">
+        <div class="stock-sync-card__header">
+          <div>
+            <h2>Prefix Control</h2>
+            <p>Choose whether rollout should apply to all SKUs or only selected prefixes.</p>
+          </div>
+
+          <div
+            class="stock-sync-badge stock-sync-badge--blue"
+            data-stock-sync-target="prefixMode">
+            Loading...
+          </div>
+        </div>
+
+        <div class="stock-sync-card__actions">
+          <button
+            class="btn btn-primary"
+            data-stock-sync-target="allowAllButton"
+            data-action="click->stock-sync#setAll">
+            Allow All
+          </button>
+
+          <button
+            class="btn btn-secondary"
+            data-stock-sync-target="allowlistButton"
+            data-action="click->stock-sync#setAllowlist">
+            Allowlist
+          </button>
+        </div>
+
+        <div class="stock-sync-prefix-form">
+          <input
+            type="text"
+            class="stock-sync-prefix-form__input"
+            placeholder="Add prefix e.g. Adda.41A21"
+            data-stock-sync-target="prefixInput"
+            data-action="keydown->stock-sync#onPrefixKeydown" />
+
+          <button
+            class="btn btn-primary"
+            data-stock-sync-target="addPrefixButton"
+            data-action="click->stock-sync#addPrefix">
+            Add
+          </button>
+        </div>
+
+        <div
+          class="stock-sync-prefix-empty hidden"
+          data-stock-sync-target="prefixEmpty">
+          No prefixes configured.
+        </div>
+
+        <div
+          class="stock-sync-prefix-list"
+          data-stock-sync-target="prefixList"></div>
+      </section>
+
+      <section class="stock-sync-card">
+        <div class="stock-sync-card__header">
+          <div>
+            <h2>Shops</h2>
+            <p>Enable sync and trigger backfill per shop.</p>
+          </div>
+        </div>
+
+        <div
+          class="stock-sync-shop-grid"
+          data-stock-sync-target="shopList"></div>
+      </section>
+    </div>
+  <% end %>
+</section>

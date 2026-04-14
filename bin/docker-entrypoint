@@ -1,0 +1,35 @@
+#!/bin/bash
+set -e
+
+# Enable jemalloc for reduced memory usage and latency.
+if [ -z "${LD_PRELOAD+x}" ]; then
+  LD_PRELOAD=$(find /usr/lib -name libjemalloc.so.2 -print -quit)
+  export LD_PRELOAD
+fi
+
+run_db_prepare="false"
+
+case "$1" in
+  ./bin/thrust)
+    if [ "$2" = "./bin/rails" ] && [ "$3" = "server" ]; then
+      run_db_prepare="true"
+    fi
+    ;;
+  ./bin/rails)
+    if [ "$2" = "server" ]; then
+      run_db_prepare="true"
+    fi
+    ;;
+esac
+
+if [ "${RUN_DB_PREPARE:-auto}" = "true" ]; then
+  run_db_prepare="true"
+elif [ "${RUN_DB_PREPARE:-auto}" = "false" ]; then
+  run_db_prepare="false"
+fi
+
+if [ "$run_db_prepare" = "true" ]; then
+  ./bin/rails db:prepare
+fi
+
+exec "$@"

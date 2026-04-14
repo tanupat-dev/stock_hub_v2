@@ -1,0 +1,121 @@
+<div
+  class="modal-backdrop hidden"
+  data-product-management-target="modalBackdrop"
+  data-action="click->product-management#closeAdjustModal">
+</div>
+
+<section
+  class="modal hidden"
+  data-product-management-target="adjustModal">
+  <div class="modal__header">
+    <div>
+      <h2>Adjust Stock</h2>
+      <p data-product-management-target="adjustSkuSummary">No SKU selected</p>
+    </div>
+
+    <button
+      type="button"
+      class="icon-btn"
+      data-action="click->product-management#closeAdjustModal">
+      ✕
+    </button>
+  </div>
+
+  <div class="modal__body">
+    <form data-action="submit->product-management#submitAdjust">
+      <input type="hidden" data-product-management-target="adjustSkuId">
+
+      <div class="field">
+        <label for="adjust_mode">Mode</label>
+        <select
+          id="adjust_mode"
+          data-product-management-target="adjustMode"
+          data-action="change->product-management#onAdjustModeChange">
+          <option value="stock_in">Receive stock</option>
+          <option value="adjust_delta">Adjust by delta</option>
+          <option value="adjust_set">Set exact stock</option>
+          <option value="update_buffer">Update buffer only</option>
+        </select>
+      </div>
+
+      <div class="field" data-product-management-target="quantityField">
+        <label for="adjust_quantity">Quantity</label>
+        <input
+          id="adjust_quantity"
+          type="number"
+          min="1"
+          value="1"
+          data-product-management-target="quantityInput">
+      </div>
+
+      <div class="field hidden" data-product-management-target="deltaField">
+        <label for="adjust_delta">Delta</label>
+        <input
+          id="adjust_delta"
+          type="number"
+          value="0"
+          data-product-management-target="deltaInput">
+      </div>
+
+      <div class="field hidden" data-product-management-target="setToField">
+        <label for="adjust_set_to">Set to</label>
+        <input
+          id="adjust_set_to"
+          type="number"
+          min="0"
+          value="0"
+          data-product-management-target="setToInput">
+      </div>
+
+      <div class="field" data-product-management-target="bufferField">
+        <label for="adjust_buffer">Buffer</label>
+        <input
+          id="adjust_buffer"
+          type="number"
+          min="0"
+          value="0"
+          data-product-management-target="bufferInput">
+      </div>
+
+      <div class="field">
+        <label for="adjust_reason">Reason</label>
+        <input
+          id="adjust_reason"
+          type="text"
+          placeholder="เช่น receive_supplier, damage, recount"
+          data-product-management-target="reasonInput">
+      </div>
+
+      <div class="field">
+        <label for="adjust_note">Note</label>
+        <textarea
+          id="adjust_note"
+          rows="3"
+          placeholder="รายละเอียดเพิ่มเติม"
+          data-product-management-target="noteInput"></textarea>
+      </div>
+
+      <div
+        class="form-message hidden"
+        data-product-management-target="adjustMessage">
+      </div>
+
+      <div
+        class="form-message hidden"
+        data-product-management-target="adjustWarning">
+      </div>
+
+      <div class="modal__actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-action="click->product-management#closeAdjustModal">
+          Cancel
+        </button>
+        <button type="submit" class="btn btn-primary">
+          Confirm
+        </button>
+      </div>
+    </form>
+  </div>
+</section>

@@ -1,0 +1,85 @@
+<%= render "ops/shared/page",
+           title: "Marketplace Connections",
+           subtitle: "Create or update app credentials, then connect each shop through OAuth.",
+           page_class: "ops-page--marketplace-connections" do %>
+  <div data-controller="marketplace-connections">
+    <%= render "ops/marketplace_connections/callbacks", callback_urls: @callback_urls %>
+
+    <section class="marketplace-forms">
+      <%= render "ops/marketplace_connections/tiktok_form" %>
+      <%= render "ops/marketplace_connections/lazada_form" %>
+    </section>
+
+    <section class="marketplace-lists">
+      <%= render "ops/marketplace_connections/connections_group",
+                 title: "TikTok Shops",
+                 subtitle: "Existing TikTok connections for this environment.",
+                 shops: @tiktok_shops,
+                 empty_text: "No TikTok shops connected yet." do |shop| %>
+        <% credential = shop.tiktok_credential %>
+        <% app = shop.tiktok_app || credential&.tiktok_app %>
+
+        <% status_label =
+          if credential.present?
+            credential.active == false ? "Disconnected" : (credential.access_token_expiring_soon? ? "Expiring" : "Connected")
+          else
+            "Disconnected"
+          end
+        %>
+
+        <% status_class =
+          if credential.present?
+            credential.active == false ? "is-disconnected" : (credential.access_token_expiring_soon? ? "is-expiring" : "is-connected")
+          else
+            "is-disconnected"
+          end
+        %>
+
+        <%= render "ops/marketplace_connections/connection_item",
+                   shop: shop,
+                   status_label: status_label,
+                   status_class: status_class,
+                   app_code: app&.code,
+                   credential_label: (credential.present? ? "Connected" : "Not connected"),
+                   reconnect_path: oauth_tiktok_start_path(shop_id: shop.id) %>
+      <% end %>
+
+      <%= render "ops/marketplace_connections/connections_group",
+                 title: "Lazada Shops",
+                 subtitle: "Existing Lazada connections for this environment.",
+                 shops: @lazada_shops,
+                 empty_text: "No Lazada shops connected yet." do |shop| %>
+        <% credential = shop.lazada_credential %>
+        <% app = shop.lazada_app %>
+
+        <% status_label =
+          if credential.blank?
+            "Disconnected"
+          elsif credential.access_token_expired?
+            "Expired"
+          else
+            "Connected"
+          end
+        %>
+
+        <% status_class =
+          if credential.blank?
+            "is-disconnected"
+          elsif credential.access_token_expired?
+            "is-expired"
+          else
+            "is-connected"
+          end
+        %>
+
+        <%= render "ops/marketplace_connections/connection_item",
+                   shop: shop,
+                   status_label: status_label,
+                   status_class: status_class,
+                   app_code: app&.code,
+                   credential_label: (credential.present? ? "Connected" : "Not connected"),
+                   reconnect_path: oauth_lazada_start_path(shop_id: shop.id) %>
+      <% end %>
+    </section>
+  </div>
+<% end %>

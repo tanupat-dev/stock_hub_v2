@@ -1,0 +1,149 @@
+# frozen_string_literal: true
+
+module Ops
+  class ReturnShipmentsController < BaseController
+    def index
+      @active_ops_nav = :orders
+
+      scope = ReturnShipment.includes(:shop, :order, :return_shipment_lines).order(updated_at: :desc, id: :desc)
+
+      if params[:q].present?
+        q = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
+
+        scope = scope.where(
+          "external_return_id ILIKE :q OR external_order_id ILIKE :q OR tracking_number ILIKE :q",
+          q: q
+        )
+      end
+
+      if params[:channel].present?
+        scope = scope.where(channel: params[:channel].to_s.strip)
+      end
+
+      if params[:shop_id].present?
+        scope = scope.where(shop_id: params[:shop_id].to_i)
+      end
+
+      if params[:status_store].present?
+        scope = scope.where(status_store: params[:status_store].to_s.strip)
+      end
+
+      if params[:status_marketplace].present?
+        scope = scope.where(status_marketplace: params[:status_marketplace].to_s.strip)
+      end
+
+      if params[:external_return_id].present?
+        scope = scope.where(external_return_id: params[:external_return_id].to_s.strip)
+      end
+
+      if params[:external_order_id].present?
+        scope = scope.where(external_order_id: params[:external_order_id].to_s.strip)
+      end
+
+      limit = normalize_limit(params[:limit])
+      shipments = scope.limit(limit).to_a
+
+      render json: {
+        ok: true,
+        count: shipments.size,
+        filters: {
+          q: params[:q],
+          channel: params[:channel],
+          shop_id: params[:shop_id],
+          status_store: params[:status_store],
+          status_marketplace: params[:status_marketplace],
+          external_return_id: params[:external_return_id],
+          external_order_id: params[:external_order_id],
+          limit: limit
+        },
+        return_shipments: shipments.map { |shipment| serialize_shipment(shipment) }
+      }
+    end
+
+    def show
+      shipment = ReturnShipment
+                   .includes(:shop, :order, { return_shipment_lines: [ :sku, :order_line ] }, :return_scans)
+                   .find(params[:id])
+
+      render json: {
+        ok: true,
+        return_shipment: serialize_shipment_detail(shipment)
+      }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "not found" }, status: :not_found
+    end
+
+    private
+
+    def normalize_limit(raw)
+      value = raw.to_i
+      return 50 if value <= 0
+      return 200 if value > 200
+
+      value
+    end
+
+    def serialize_shipment(shipment)
+      {
+        id: shipment.id,
+        channel: shipment.channel,
+        shop_id: shipment.shop_id,
+        shop_code: shipment.shop&.shop_code,
+        order_id: shipment.order_id,
+        external_order_id: shipment.external_order_id,
+        external_return_id: shipment.external_return_id,
+        tracking_number: shipment.tracking_number,
+        buyer_username: shipment.buyer_username,
+        status_store: shipment.status_store,
+        derived_status_store: shipment.derived_status_store,
+        status_marketplace: shipment.status_marketplace,
+        requested_at: shipment.requested_at,
+        return_carrier_method: shipment.return_carrier_method,
+        return_delivery_status: shipment.return_delivery_status,
+        returned_delivered_at: shipment.returned_delivered_at,
+        total_qty_requested: shipment.total_qty_requested,
+        total_qty_scanned: shipment.total_qty_scanned,
+        line_count: shipment.return_shipment_lines.size,
+        last_seen_at_external: shipment.last_seen_at_external,
+        created_at: shipment.created_at,
+        updated_at: shipment.updated_at
+      }
+    end
+
+    def serialize_shipment_detail(shipment)
+      serialize_shipment(shipment).merge(
+        order: shipment.order && {
+          id: shipment.order.id,
+          channel: shipment.order.channel,
+          shop_id: shipment.order.shop_id,
+          external_order_id: shipment.order.external_order_id,
+          status: shipment.order.status
+        },
+        lines: shipment.return_shipment_lines.sort_by(&:id).map do |line|
+          {
+            id: line.id,
+            order_line_id: line.order_line_id,
+            sku_id: line.sku_id,
+            sku_code_snapshot: line.sku_code_snapshot,
+            sku_code: line.sku&.code,
+            barcode: line.sku&.barcode,
+            qty_returned: line.qty_returned,
+            scanned_qty: line.scanned_qty,
+            pending_scan_qty: line.pending_scan_qty,
+            fully_scanned: line.fully_scanned?
+          }
+        end,
+        scans: shipment.return_scans.order(:id).map do |scan|
+          {
+            id: scan.id,
+            order_line_id: scan.order_line_id,
+            sku_id: scan.sku_id,
+            quantity: scan.quantity,
+            scanned_at: scan.scanned_at,
+            idempotency_key: scan.idempotency_key
+          }
+        end
+      )
+    end
+  end
+end

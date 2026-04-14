@@ -1,0 +1,184 @@
+<%= render "ops/shared/page",
+  title: "Barcode Binding",
+  subtitle: "Bind barcode ให้ SKU ครั้งแรก",
+  page_class: "ops-page--barcode-binding" do %>
+
+<section class="barcode-binding-page" data-controller="barcode-binding">
+  <section class="panel filters-panel">
+    <div class="panel__header">
+      <div>
+        <h2>Find SKU</h2>
+        <p>เลือก SKU เป้าหมายก่อนยิง barcode</p>
+      </div>
+    </div>
+
+    <div class="filters-grid">
+      <div class="field">
+        <label for="barcode_binding_brand">Brand</label>
+        <select
+          id="barcode_binding_brand"
+          data-barcode-binding-target="brand"
+          data-action="change->barcode-binding#onFilterChange">
+          <option value="">All</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="barcode_binding_model">Model</label>
+        <select
+          id="barcode_binding_model"
+          data-barcode-binding-target="model"
+          data-action="change->barcode-binding#onFilterChange">
+          <option value="">All</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="barcode_binding_color">Color</label>
+        <select
+          id="barcode_binding_color"
+          data-barcode-binding-target="color"
+          data-action="change->barcode-binding#onFilterChange">
+          <option value="">All</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="barcode_binding_size">Size</label>
+        <select
+          id="barcode_binding_size"
+          data-barcode-binding-target="size"
+          data-action="change->barcode-binding#onFilterChange">
+          <option value="">All</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="barcode_binding_barcode_status">Barcode status</label>
+        <select
+          id="barcode_binding_barcode_status"
+          data-barcode-binding-target="barcodeStatus"
+          data-action="change->barcode-binding#onFilterChange">
+          <option value="all">All</option>
+          <option value="needs_binding" selected>Needs binding only</option>
+          <option value="bound">Bound only</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel__header">
+      <div>
+        <h2>Selected SKU</h2>
+        <p>ระบบจะ bind barcode ให้ SKU ที่เลือกอยู่เท่านั้น</p>
+      </div>
+    </div>
+
+    <div
+      class="barcode-binding-sku-slot"
+      data-barcode-binding-target="skuInfo">
+      Select SKU
+    </div>
+
+    <div class="barcode-binding-form">
+      <div class="field field--wide">
+        <label for="barcode_binding_input">Scan barcode</label>
+        <input
+          id="barcode_binding_input"
+          type="text"
+          class="input"
+          placeholder="Scan barcode..."
+          autocomplete="off"
+          data-barcode-binding-target="barcodeInput"
+          data-action="keydown->barcode-binding#onScanKeydown" />
+      </div>
+
+      <div class="barcode-binding-form__actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          data-barcode-binding-target="bindButton"
+          data-action="click->barcode-binding#bind">
+          Bind
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="form-message hidden"
+      data-barcode-binding-target="message"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel__header">
+      <div>
+        <h2>Bulk Bind via CSV</h2>
+        <p>อัปโหลดไฟล์ CSV ที่มีคู่ข้อมูล <strong>sku + barcode</strong></p>
+      </div>
+    </div>
+
+    <div class="barcode-binding-upload-help">
+      <div class="barcode-binding-upload-help__title">CSV format</div>
+      <div class="barcode-binding-upload-help__text">
+        ต้องมี header 2 คอลัมน์นี้เป็นอย่างน้อย: <code>sku</code>, <code>barcode</code>
+      </div>
+
+      <div class="barcode-binding-upload-help__example">
+<pre>sku,barcode
+Adda.41A21 ชินจัง.ดำ.25,8851234567890
+NIKE.AF1.WHITE.42,194500123456
+ADIDAS.SAMBA.BLACK.43,4067891234567</pre>
+      </div>
+
+      <div class="barcode-binding-upload-help__notes">
+        <div>• ระบบจะหา SKU จากคอลัมน์ <code>sku</code> โดยใช้ค่าเดียวกับ <strong>sku code</strong> ในระบบ</div>
+        <div>• ถ้า SKU ไม่เจอ หรือ barcode ซ้ำกับ SKU อื่น ระบบจะขึ้น error รายแถว</div>
+        <div>• ไฟล์ต้องเป็น <strong>.csv</strong></div>
+      </div>
+    </div>
+
+    <div class="barcode-binding-bulk">
+      <div class="field field--wide">
+        <label for="barcode_binding_file">CSV file</label>
+
+        <label for="barcode_binding_file" class="barcode-binding-file-picker">
+          <span class="barcode-binding-file-picker__button">Choose CSV File</span>
+          <span
+            class="barcode-binding-file-picker__meta"
+            data-barcode-binding-target="fileName">
+            เลือกไฟล์สำหรับ bulk bind barcode
+          </span>
+        </label>
+
+        <input
+          id="barcode_binding_file"
+          type="file"
+          accept=".csv,text/csv"
+          class="barcode-binding-file-input"
+          data-barcode-binding-target="file"
+          data-action="change->barcode-binding#onFileChange" />
+      </div>
+
+      <div class="barcode-binding-form__actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-barcode-binding-target="uploadButton"
+          data-action="click->barcode-binding#upload">
+          Upload CSV
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="form-message hidden"
+      data-barcode-binding-target="bulkMessage"></div>
+
+    <div
+      class="hidden"
+      data-barcode-binding-target="bulkResult"></div>
+  </section>
+</section>
+
+<% end %>

@@ -1,0 +1,50 @@
+<section class="marketplace-callbacks">
+  <article class="marketplace-card">
+    <div class="marketplace-card__header">
+      <div>
+        <h2 class="marketplace-card__title">Callback URLs</h2>
+        <p class="marketplace-card__subtitle">
+          Copy these URLs into each marketplace developer portal. They are not editable here.
+        </p>
+      </div>
+    </div>
+
+    <div class="callback-grid">
+      <div class="callback-box">
+        <div class="callback-box__label">TikTok Callback URL</div>
+        <div class="callback-box__row">
+          <code
+            class="callback-box__value"
+            data-marketplace-connections-target="tiktokCallbackValue"
+          ><%= callback_urls[:tiktok] %></code>
+          <button
+            type="button"
+            class="ui-button ui-button--secondary"
+            data-action="click->marketplace-connections#copyTiktokCallback"
+            data-marketplace-connections-target="tiktokCopyButton"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="callback-box">
+        <div class="callback-box__label">Lazada Callback URL</div>
+        <div class="callback-box__row">
+          <code
+            class="callback-box__value"
+            data-marketplace-connections-target="lazadaCallbackValue"
+          ><%= callback_urls[:lazada] %></code>
+          <button
+            type="button"
+            class="ui-button ui-button--secondary"
+            data-action="click->marketplace-connections#copyLazadaCallback"
+            data-marketplace-connections-target="lazadaCopyButton"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>

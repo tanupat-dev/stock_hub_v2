@@ -1,0 +1,30 @@
+<section
+  class="ledger-drawer"
+  data-product-management-target="ledgerDrawer">
+  <div class="ledger-drawer__header">
+    <div>
+      <h2>SKU Ledger</h2>
+      <p data-product-management-target="ledgerSkuSummary">No SKU selected</p>
+    </div>
+
+    <button
+      type="button"
+      class="icon-btn"
+      data-action="click->product-management#closeLedger">
+      ✕
+    </button>
+  </div>
+
+  <div class="ledger-drawer__body">
+    <div
+      class="ledger-empty"
+      data-product-management-target="ledgerEmpty">
+      เลือก SKU เพื่อดูประวัติการเคลื่อนไหว
+    </div>
+
+    <div
+      class="ledger-list"
+      data-product-management-target="ledgerList">
+    </div>
+  </div>
+</section>

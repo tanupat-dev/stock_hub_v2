@@ -1,0 +1,63 @@
+# Kamal config
+# Keep this file production-safe even if you deploy with Render first.
+# This version is adjusted so web does NOT run Solid Queue inside Puma.
+
+service: stock_hub_v2
+
+image: your-docker-user/stock_hub_v2
+
+servers:
+  web:
+    - your-web-server-ip
+
+  job:
+    hosts:
+      - your-job-server-ip
+    cmd: bin/jobs
+
+proxy:
+  ssl: true
+  host: your-domain.com
+
+registry:
+  username: your-docker-user
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+env:
+  secret:
+    - RAILS_MASTER_KEY
+    - DATABASE_URL
+    - CACHE_DATABASE_URL
+    - QUEUE_DATABASE_URL
+    - CABLE_DATABASE_URL
+
+  clear:
+    RAILS_ENV: production
+    RAILS_LOG_LEVEL: info
+    APP_HOST: your-domain.com
+    ACTIVE_STORAGE_SERVICE: local
+
+    # IMPORTANT:
+    # keep jobs OUT of puma for real production topology
+    SOLID_QUEUE_IN_PUMA: false
+
+    # safe rollout defaults for first deploy
+    ENABLE_POLL_ORDERS: false
+    ENABLE_RECONCILE: false
+    ENABLE_POLL_RETURNS: false
+    ENABLE_CATALOG_SYNC: false
+
+aliases:
+  console: app exec --interactive --reuse "bin/rails console"
+  shell: app exec --interactive --reuse "bash"
+  logs: app logs -f
+  dbc: app exec --interactive --reuse "bin/rails dbconsole"
+
+volumes:
+  - "stock_hub_v2_storage:/rails/storage"
+
+asset_path: /rails/public/assets
+
+builder:
+  arch: amd64

@@ -1,0 +1,98 @@
+services:
+  - type: web
+    name: stockhub-v2-web
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /up
+    autoDeploy: true
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_LEVEL
+        value: info
+      - key: APP_HOST
+        sync: false
+      - key: ACTIVE_STORAGE_SERVICE
+        value: local
+      - key: SOLID_QUEUE_IN_PUMA
+        value: "false"
+      - key: RUN_DB_PREPARE
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: CACHE_DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: QUEUE_DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: CABLE_DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: RAILS_MASTER_KEY
+        sync: false
+    disk:
+      name: stockhub-v2-storage
+      mountPath: /rails/storage
+      sizeGB: 10
+
+  - type: worker
+    name: stockhub-v2-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerCommand: bin/jobs
+    autoDeploy: true
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_LEVEL
+        value: info
+      - key: APP_HOST
+        sync: false
+      - key: ACTIVE_STORAGE_SERVICE
+        value: local
+      - key: SOLID_QUEUE_IN_PUMA
+        value: "false"
+      - key: RUN_DB_PREPARE
+        value: "false"
+      - key: ENABLE_POLL_ORDERS
+        value: "false"
+      - key: ENABLE_RECONCILE
+        value: "false"
+      - key: ENABLE_POLL_RETURNS
+        value: "false"
+      - key: ENABLE_CATALOG_SYNC
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: CACHE_DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: QUEUE_DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: CABLE_DATABASE_URL
+        fromDatabase:
+          name: stockhub-v2-db
+          property: connectionString
+      - key: RAILS_MASTER_KEY
+        sync: false
+    disk:
+      name: stockhub-v2-storage
+      mountPath: /rails/storage
+      sizeGB: 10
+
+databases:
+  - name: stockhub-v2-db
+    plan: basic-1gb

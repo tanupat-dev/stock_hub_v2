@@ -1,0 +1,244 @@
+# frozen_string_literal: true
+
+module Orders
+  class UpsertFromSearchRows
+    RESERVE_STATUSES = %w[
+      UNPAID
+      ON_HOLD
+      AWAITING_FULFILLMENT
+      READY_TO_SHIP
+      PARTIALLY_SHIPPING
+    ].freeze
+
+    COMMIT_STATUSES = %w[
+      IN_TRANSIT
+    ].freeze
+
+    RELEASE_STATUSES = %w[
+      CANCELLED
+    ].freeze
+
+    NOOP_STATUSES = %w[
+      DELIVERED
+      COMPLETED
+    ].freeze
+
+    def self.call!(shop:, rows:)
+      new(shop:, rows:).call!
+    end
+
+    def initialize(shop:, rows:)
+      @shop = shop
+      @rows = rows || []
+      @now = Time.current
+    end
+
+    def call!
+      return 0 if @rows.blank?
+
+      external_ids = @rows.map { |r| r["id"].to_s }.reject(&:blank?).uniq
+      existing =
+        Order.where(channel: "tiktok", shop_id: @shop.id, external_order_id: external_ids)
+             .index_by(&:external_order_id)
+
+      @rows.each do |r|
+        external_order_id = r["id"].to_s
+        next if external_order_id.blank?
+
+        incoming_status = normalize_tiktok_status(r)
+        incoming_update_time = r["update_time"].to_i
+
+        order = existing[external_order_id]
+        prev_status = order&.status
+        prev_update_time = order&.updated_time_external.to_i
+
+        payload = r.merge("status" => incoming_status)
+
+        order = upsert_order!(external_order_id, incoming_status, incoming_update_time, payload)
+        existing[external_order_id] ||= order
+
+        mapping_changed = upsert_lines!(order, payload)
+
+        should_apply =
+          prev_status != incoming_status ||
+          incoming_update_time > prev_update_time ||
+          mapping_changed
+
+        apply_inventory!(order, incoming_status, prev_status) if should_apply
+      end
+
+      @rows.size
+    end
+
+    private
+
+    def normalize_tiktok_status(row)
+      raw_status = row["status"].to_s
+
+      has_tracking = Orders::StatusTracking.any_in_order_payload?(row)
+
+      case raw_status
+      when "AWAITING_SHIPMENT"
+        has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
+      when "AWAITING_COLLECTION"
+        "READY_TO_SHIP"
+      else
+        raw_status
+      end
+    end
+
+    def upsert_order!(external_id, status, update_time, payload)
+      existing =
+        Order.find_by(
+          channel: "tiktok",
+          shop_id: @shop.id,
+          external_order_id: external_id
+        )
+
+      buyer_name = extract_buyer_name(payload).presence || existing&.buyer_name
+      province   = extract_province(payload).presence || existing&.province
+      buyer_note = extract_buyer_note(payload).presence || existing&.buyer_note
+
+      attrs = {
+        channel: "tiktok",
+        shop_id: @shop.id,
+        external_order_id: external_id,
+        status: status,
+        buyer_name: buyer_name,
+        province: province,
+        buyer_note: buyer_note,
+        updated_time_external: update_time,
+        updated_at_external: (update_time > 0 ? Time.at(update_time) : nil),
+        raw_payload: payload,
+        created_at: @now,
+        updated_at: @now
+      }
+
+      Order.upsert_all(
+        [ attrs ],
+        unique_by: :uniq_orders_channel_shop_external,
+        record_timestamps: false,
+        update_only: %i[
+          status
+          buyer_name
+          province
+          buyer_note
+          updated_time_external
+          updated_at_external
+          raw_payload
+          updated_at
+        ]
+      )
+
+      Order.find_by!(
+        channel: "tiktok",
+        shop_id: @shop.id,
+        external_order_id: external_id
+      )
+    end
+
+    def upsert_lines!(order, row)
+      items = Array(row["line_items"])
+      return false if items.blank?
+
+      mappings =
+        SkuMapping.where(channel: "tiktok", shop_id: @shop.id)
+                  .index_by(&:external_sku)
+
+      mapping_changed = false
+
+      items.each do |li|
+        external_line_id = li["id"].to_s.presence
+        external_sku = li["seller_sku"].to_s.presence || li["sku_id"].to_s
+        next if external_sku.blank?
+
+        sku_id = mappings[external_sku]&.sku_id
+        qty = [ li["quantity"].to_i, 1 ].max
+
+        idk = "tiktok:order:#{order.external_order_id}:line:#{external_line_id || external_sku}"
+
+        existing_line = OrderLine.find_by(idempotency_key: idk)
+        if existing_line && existing_line.sku_id.nil? && sku_id.present?
+          mapping_changed = true
+        end
+
+        OrderLine.upsert_all(
+          [ {
+            order_id: order.id,
+            external_line_id: external_line_id,
+            external_sku: external_sku,
+            sku_id: sku_id,
+            quantity: qty,
+            status: li["display_status"].to_s,
+            idempotency_key: idk,
+            raw_payload: li,
+            created_at: @now,
+            updated_at: @now
+          } ],
+          unique_by: :index_order_lines_on_idempotency_key,
+          record_timestamps: false,
+          update_only: %i[
+            external_line_id external_sku sku_id quantity status raw_payload updated_at
+          ]
+        )
+      end
+
+      mapping_changed
+    end
+
+    def apply_inventory!(order, status, previous_status)
+      action =
+        if Orders::StatusTransitionGuard.should_reserve?(
+             previous_status: previous_status,
+             current_status: status
+           )
+          :reserve
+        elsif Orders::StatusTransitionGuard.should_commit?(
+                previous_status: previous_status,
+                current_status: status
+              )
+          :commit
+        elsif Orders::StatusTransitionGuard.should_release?(
+                previous_status: previous_status,
+                current_status: status
+              )
+          :release
+        else
+          :noop
+        end
+
+      return if action == :noop
+
+      Orders::ApplyInventoryPolicy.call!(
+        order: order,
+        action: action,
+        idempotency_prefix: "tiktok:order:#{order.external_order_id}",
+        meta: {
+          source: "tiktok_poll",
+          shop_id: @shop.id,
+          shop_code: @shop.shop_code,
+          status_marketplace: status,
+          previous_status: previous_status
+        }
+      )
+    end
+
+    def extract_buyer_name(payload)
+      payload.dig("recipient_address", "name").to_s.strip.presence
+    end
+
+    def extract_province(payload)
+      district_info = Array(payload.dig("recipient_address", "district_info"))
+
+      district_info.find { |row| row["address_level"].to_s == "L1" }
+                   &.dig("address_name")
+                   .to_s
+                   .strip
+                   .presence
+    end
+
+    def extract_buyer_note(payload)
+      payload["buyer_message"].to_s.strip.presence
+    end
+  end
+end

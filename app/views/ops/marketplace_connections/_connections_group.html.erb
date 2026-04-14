@@ -1,0 +1,18 @@
+<div class="connections-group">
+  <div class="connections-group__header">
+    <h2 class="connections-group__title"><%= title %></h2>
+    <p class="connections-group__subtitle"><%= subtitle %></p>
+  </div>
+
+  <% if shops.any? %>
+    <div class="connections-list">
+      <% shops.each do |shop| %>
+        <%= yield shop %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="empty-state">
+      <%= empty_text %>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,188 @@
+<%= render "ops/shared/page",
+           title: "POS Cashier",
+           subtitle: "ขายหน้าร้านแบบ scan-first",
+           page_class: "ops-page--pos-cashier" do %>
+
+  <section class="pos-cashier" data-controller="pos-cashier">
+    <div class="pos-grid">
+      <section class="panel pos-left">
+        <div class="panel__header">
+          <div>
+            <h2>Current Sale</h2>
+            <p data-pos-cashier-target="leftHint" class="pos-muted">
+              เริ่มต้นโดยกด Start New Sale
+            </p>
+          </div>
+        </div>
+
+        <div class="pos-sale-status-card" data-pos-cashier-target="saleStatusCard">
+          <div class="pos-sale-status-card__title" data-pos-cashier-target="saleHeadline">
+            No active sale
+          </div>
+
+          <div class="pos-sale-status-card__meta" data-pos-cashier-target="saleMeta">
+            ยังไม่มีบิลที่กำลังขายอยู่
+          </div>
+        </div>
+
+        <div class="pos-primary-action" data-pos-cashier-target="startSaleBlock">
+          <button
+            type="button"
+            class="btn btn-primary pos-primary-button"
+            data-pos-cashier-target="startSaleButton"
+            data-action="click->pos-cashier#createSale">
+            Start New Sale
+          </button>
+        </div>
+
+        <div class="pos-workflow hidden" data-pos-cashier-target="workflowBlock">
+          <div class="pos-field">
+            <label for="pos_scan_input">Scan Barcode</label>
+            <input
+              id="pos_scan_input"
+              type="text"
+              placeholder="Scan barcode and press Enter"
+              autocomplete="off"
+              data-pos-cashier-target="scanInput"
+              data-action="keydown->pos-cashier#onScanKeydown">
+            <p class="pos-field__hint">
+              ยิงบาร์โค้ดด้วยเครื่องสแกน หรือพิมพ์บาร์โค้ดแล้วกด Enter
+            </p>
+          </div>
+
+          <div class="pos-secondary-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-pos-cashier-target="searchButton"
+              data-action="click->pos-cashier#openSearch">
+              Search SKU
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-pos-cashier-target="newSaleAgainButton"
+              data-action="click->pos-cashier#createSale">
+              Start Another Sale
+            </button>
+          </div>
+        </div>
+
+        <div class="pos-after-checkout hidden" data-pos-cashier-target="afterCheckoutBlock">
+          <div class="pos-after-checkout__message">
+            บิลนี้ปิดการขายแล้ว
+          </div>
+
+          <div class="pos-secondary-actions">
+            <button
+              type="button"
+              class="btn btn-danger"
+              data-pos-cashier-target="voidButton"
+              data-action="click->pos-cashier#voidSale">
+              Void Sale
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              data-action="click->pos-cashier#createSale">
+              Start New Sale
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel pos-right">
+        <div class="panel__header">
+          <div>
+            <h2>Cart</h2>
+            <p data-pos-cashier-target="cartSubhead" class="pos-muted">
+              ยังไม่มีบิลที่กำลังขาย
+            </p>
+          </div>
+        </div>
+
+        <div class="pos-cart-empty" data-pos-cashier-target="cartEmptyState">
+          <div class="pos-cart-empty__title">No active sale yet</div>
+          <div class="pos-cart-empty__text">
+            กด Start New Sale ก่อน แล้วค่อย scan barcode เพื่อเพิ่มสินค้าเข้าบิล
+          </div>
+        </div>
+
+        <div class="pos-cart-content hidden" data-pos-cashier-target="cartContent">
+          <div class="table-wrap">
+            <table class="pos-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Barcode</th>
+                  <th class="th-center">Qty</th>
+                  <th></th>
+                </tr>
+              </thead>
+
+              <tbody data-pos-cashier-target="cartBody">
+                <tr>
+                  <td colspan="4" class="table-empty">No items yet</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pos-summary">
+            <div class="pos-summary__row">
+              <span>Total items</span>
+              <strong data-pos-cashier-target="itemCount">0</strong>
+            </div>
+          </div>
+
+          <div class="pos-checkout-actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              data-pos-cashier-target="checkoutButton"
+              data-action="click->pos-cashier#checkout">
+              Checkout
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="pos-search-modal hidden" data-pos-cashier-target="searchModal">
+      <div class="pos-search-backdrop" data-action="click->pos-cashier#closeSearch"></div>
+
+      <div class="pos-search-panel">
+        <div class="pos-search-panel__header">
+          <div>
+            <h3>Search SKU</h3>
+            <p class="pos-muted">ใช้เมื่อสแกนบาร์โค้ดไม่เจอ</p>
+          </div>
+
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="click->pos-cashier#closeSearch">
+            Close
+          </button>
+        </div>
+
+        <div class="pos-field">
+          <label for="pos_search_input">Search</label>
+          <input
+            id="pos_search_input"
+            type="text"
+            placeholder="Search SKU / barcode / brand / model"
+            autocomplete="off"
+            data-pos-cashier-target="searchInput"
+            data-action="input->pos-cashier#onSearchInput">
+        </div>
+
+        <div class="pos-search-results" data-pos-cashier-target="searchResults">
+          <div class="table-empty">Type to search</div>
+        </div>
+      </div>
+    </div>
+  </section>
+<% end %>

@@ -1,0 +1,129 @@
+<div
+  class="modal-backdrop hidden"
+  data-product-management-target="importModalBackdrop"
+  data-action="click->product-management#closeImportModal">
+</div>
+
+<section
+  class="modal hidden"
+  data-product-management-target="importModal">
+  <div class="modal__header">
+    <div>
+      <h2>Import SKU CSV</h2>
+      <p>CSV only • Required: sku, brand, model, color, size • Optional: buffer_quantity, on_hand</p>
+    </div>
+
+    <button
+      type="button"
+      class="icon-btn"
+      data-action="click->product-management#closeImportModal">
+      ✕
+    </button>
+  </div>
+
+  <div class="modal__body modal__body--compact">
+    <div class="import-upload-box">
+      <label
+        for="sku_import_file"
+        class="import-file-picker"
+        data-product-management-target="importFilePicker">
+        <div class="import-file-picker__icon">📄</div>
+        <div class="import-file-picker__content">
+          <div
+            class="import-file-picker__title"
+            data-product-management-target="importSelectedFileTitle">
+            Choose CSV file
+          </div>
+          <div
+            class="import-file-picker__subtitle"
+            data-product-management-target="importSelectedFileMeta">
+            CSV only
+          </div>
+        </div>
+        <div class="import-file-picker__button">Choose File</div>
+      </label>
+
+      <input
+        id="sku_import_file"
+        class="import-file-input"
+        type="file"
+        accept=".csv,text/csv"
+        data-product-management-target="importFileInput"
+        data-action="change->product-management#onImportFileChange">
+    </div>
+
+    <div class="import-stock-hint">
+      <div class="import-stock-hint__title">
+        📦 Stock Import
+      </div>
+
+      <div class="import-stock-hint__desc">
+        ใส่ <strong>on_hand</strong> ใน CSV เพื่อ import stock ได้ทันที
+      </div>
+
+      <div class="import-stock-hint__modes">
+        <label class="import-stock-mode">
+          <input
+            type="radio"
+            name="stock_mode"
+            value="skip"
+            checked
+            data-product-management-target="importStockModeSelect"
+          />
+          <div>
+            <div class="import-stock-mode__title">SKU only</div>
+            <div class="import-stock-mode__desc">ไม่แก้ stock</div>
+          </div>
+        </label>
+
+        <label class="import-stock-mode">
+          <input
+            type="radio"
+            name="stock_mode"
+            value="set_exact"
+            data-product-management-target="importStockModeSelect"
+          />
+          <div>
+            <div class="import-stock-mode__title">Set exact stock</div>
+            <div class="import-stock-mode__desc">overwrite stock ตาม CSV</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <label class="import-dry-run">
+      <input
+        type="checkbox"
+        data-product-management-target="importDryRunCheckbox"
+      />
+      <span>Preview only (no save)</span>
+    </label>
+
+    <div
+      class="form-message hidden"
+      data-product-management-target="importMessage">
+    </div>
+
+    <div
+      class="import-result import-result--compact hidden"
+      data-product-management-target="importResult">
+    </div>
+
+    <div class="modal__actions">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        data-action="click->product-management#closeImportModal">
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-primary"
+        data-product-management-target="importSubmitButton"
+        data-action="click->product-management#submitImport">
+        Upload CSV
+      </button>
+    </div>
+  </div>
+</section>

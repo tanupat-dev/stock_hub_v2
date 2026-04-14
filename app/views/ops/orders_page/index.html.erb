@@ -1,0 +1,130 @@
+<section data-controller="order-management">
+  <% page_actions = capture do %>
+    <button
+      type="button"
+      class="btn btn-secondary"
+      data-order-management-target="exportButton"
+      data-action="click->order-management#exportOrders">
+      Export Shipping Excel
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-secondary"
+      data-order-management-target="exportPackingButton"
+      data-action="click->order-management#exportPacking">
+      Export Packing List
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-secondary"
+      data-action="click->order-management#refreshOrders">
+      Refresh
+    </button>
+  <% end %>
+
+  <%= render "ops/shared/page",
+    title: "Order Management",
+    subtitle: "รวมออเดอร์จาก marketplace และ POS ในหน้าจอเดียว",
+    actions: page_actions do %>
+
+    <section class="panel filters-panel">
+      <div class="filters-grid filters-grid--orders">
+        <div class="field field--wide">
+          <label for="order_q">Search</label>
+          <input
+            id="order_q"
+            type="text"
+            placeholder="ค้นหา order / sku / barcode"
+            data-order-management-target="qInput"
+            data-action="input->order-management#onFilterInput">
+        </div>
+
+        <div class="field">
+          <label for="order_status">Status</label>
+          <select
+            id="order_status"
+            data-order-management-target="statusSelect"
+            data-action="change->order-management#onFilterChange">
+            <option value="">All status</option>
+            <option value="awaiting_fulfillment">Awaiting Fulfillment</option>
+            <option value="ready_to_ship">Ready to Ship</option>
+            <option value="in_transit">In Transit</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="delivered">Delivered</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="order_shop">Shop</label>
+          <select
+            id="order_shop"
+            data-order-management-target="shopSelect"
+            data-action="change->order-management#onFilterChange">
+            <option value="">All shops</option>
+            <option value="TikTok 1">TikTok 1</option>
+            <option value="TikTok 2">TikTok 2</option>
+            <option value="Lazada 1">Lazada 1</option>
+            <option value="Lazada 2">Lazada 2</option>
+            <option value="Shopee">Shopee</option>
+            <option value="POS">POS</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="order_date_from">Date from</label>
+          <input
+            id="order_date_from"
+            type="date"
+            data-order-management-target="dateFromInput"
+            data-action="change->order-management#onFilterChange">
+        </div>
+
+        <div class="field">
+          <label for="order_date_to">Date to</label>
+          <input
+            id="order_date_to"
+            type="date"
+            data-order-management-target="dateToInput"
+            data-action="change->order-management#onFilterChange">
+        </div>
+
+        <div class="field">
+          <label for="order_limit">Limit</label>
+          <select
+            id="order_limit"
+            data-order-management-target="limitSelect"
+            data-action="change->order-management#onFilterChange">
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filters-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          data-action="click->order-management#resetFilters">
+          Reset
+        </button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__header">
+        <div>
+          <h2>Orders</h2>
+          <p data-order-management-target="resultSummary">Loading...</p>
+        </div>
+      </div>
+
+      <div data-order-management-target="orderList">
+        <div class="table-empty">Loading...</div>
+      </div>
+    </section>
+  <% end %>
+</section>
