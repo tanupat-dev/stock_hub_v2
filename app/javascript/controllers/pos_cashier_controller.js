@@ -368,36 +368,84 @@ export default class extends Controller {
           .filter(Boolean)
           .join(" / ");
 
+        const noBarcodeBadge = !sku.barcode
+          ? `<span class="pos-badge pos-badge--warning">No barcode</span>`
+          : "";
+
         return `
-        <button
-          type="button"
-          class="pos-search-item"
-          data-barcode="${sku.barcode || ""}"
-          data-action="click->pos-cashier#selectSku">
-          <div class="pos-search-item__title">${sku.code}</div>
-          <div class="pos-search-item__meta">${subtitle || "-"}</div>
-          <div class="pos-search-item__meta">Barcode: ${sku.barcode || "-"}</div>
-        </button>
-      `;
+          <button
+            type="button"
+            class="pos-search-item"
+            data-barcode="${sku.barcode || ""}"
+            data-sku-code="${sku.code}"
+            data-action="click->pos-cashier#selectSku">
+            
+            <div class="pos-search-item__title">
+              ${sku.code}
+              ${noBarcodeBadge}
+            </div>
+
+            <div class="pos-search-item__meta">
+              ${subtitle || "-"}
+            </div>
+
+            <div class="pos-search-item__meta">
+              Barcode: ${sku.barcode || "-"}
+            </div>
+          </button>
+        `;
       })
       .join("");
   }
 
   async selectSku(e) {
     const barcode = e.currentTarget.dataset.barcode;
+    const skuCode = e.currentTarget.dataset.skuCode;
 
-    if (!barcode) {
-      this.toast("Selected SKU has no barcode");
+    if (!this.currentSale) {
+      this.toast("Start New Sale first");
+      return;
+    }
+
+    if (!this.isCartSale()) {
+      this.toast("This sale is locked");
+      return;
+    }
+
+    if (!barcode && !skuCode) {
+      this.toast("Invalid SKU");
       return;
     }
 
     this.closeSearch();
-    this.scanInputTarget.value = barcode;
 
-    await this.onScanKeydown({
-      key: "Enter",
-      preventDefault() {},
-    });
+    try {
+      const payload = {
+        quantity: 1,
+        idempotency_key: this.generateKey("pos:add_line"),
+      };
+
+      if (barcode) {
+        payload.barcode = barcode;
+      } else {
+        payload.sku_code = skuCode;
+      }
+
+      const data = await this.request(
+        `/pos/sales/${this.currentSale.id}/add_line`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!data) return;
+
+      this.setSale(data.sale);
+      this.focusScan();
+    } catch (e) {
+      this.toast(e.message);
+    }
   }
 
   increase(e) {
