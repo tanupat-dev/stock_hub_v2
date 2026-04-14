@@ -1,7 +1,7 @@
 services:
   - type: web
     name: stockhub-v2-web
-    runtime: docker
+    env: docker
     plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /up
@@ -44,7 +44,7 @@ services:
 
   - type: worker
     name: stockhub-v2-worker
-    runtime: docker
+    env: docker
     plan: starter
     dockerfilePath: ./Dockerfile
     dockerCommand: bin/jobs
@@ -95,4 +95,6 @@ services:
 
 databases:
   - name: stockhub-v2-db
-    plan: basic-1gb
+    databaseName: stockhub_v2
+    user: stockhub
+    plan: free
