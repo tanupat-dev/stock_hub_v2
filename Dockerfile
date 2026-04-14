@@ -34,7 +34,13 @@ RUN chmod +x bin/* && \
     sed -i "s/\r$//g" bin/* && \
     sed -i 's/ruby\.exe$/ruby/' bin/*
 
-RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
+RUN SECRET_KEY_BASE_DUMMY=1 \
+    APP_HOST=build.example.com \
+    DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/build_dummy \
+    CACHE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/build_dummy_cache \
+    QUEUE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/build_dummy_queue \
+    CABLE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/build_dummy_cable \
+    ./bin/rails assets:precompile
 
 FROM base
 
