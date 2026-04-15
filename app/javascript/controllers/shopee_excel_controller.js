@@ -107,7 +107,10 @@ export default class extends Controller {
         body: formData,
       });
 
-      const data = await this.safeParseJson(response);
+      const data = await this.parseJsonResponse(
+        response,
+        "uploadOrders /shopee/orders/import",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.message || data.error || "Import failed");
@@ -190,7 +193,10 @@ export default class extends Controller {
         body: formData,
       });
 
-      const data = await this.safeParseJson(response);
+      const data = await this.parseJsonResponse(
+        response,
+        "uploadReturns /shopee/returns/import",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.message || data.error || "Import failed");
@@ -205,6 +211,7 @@ export default class extends Controller {
         this.returnErrorSummaryTarget.textContent = data.error_summary;
         this.returnErrorSummaryTarget.classList.remove("is-hidden");
       } else {
+        this.returnErrorSummaryTarget.textContent = "";
         this.returnErrorSummaryTarget.classList.add("is-hidden");
       }
 
@@ -275,7 +282,10 @@ export default class extends Controller {
 
       if (!response.ok) {
         if (contentType.includes("application/json")) {
-          const data = await this.safeParseJson(response);
+          const data = await this.parseJsonResponse(
+            response,
+            "exportStock /shopee/stocks/export error",
+          );
           throw new Error(data.message || data.error || "Export failed");
         }
 
@@ -288,7 +298,10 @@ export default class extends Controller {
         )
       ) {
         if (contentType.includes("application/json")) {
-          const data = await this.safeParseJson(response);
+          const data = await this.parseJsonResponse(
+            response,
+            "exportStock /shopee/stocks/export unexpected content type",
+          );
           throw new Error(data.message || data.error || "Export failed");
         }
 
@@ -381,12 +394,24 @@ export default class extends Controller {
     return document.querySelector('meta[name="csrf-token"]')?.content || "";
   }
 
-  async safeParseJson(response) {
-    try {
+  async parseJsonResponse(response, context = "request") {
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
       return await response.json();
-    } catch (_) {
-      return {};
     }
+
+    const text = await response.text();
+
+    console.error(`${context} returned non-JSON response`, {
+      status: response.status,
+      contentType,
+      body: text.slice(0, 1000),
+    });
+
+    throw new Error(
+      `Expected JSON response but got ${contentType || "unknown content type"} (status ${response.status})`,
+    );
   }
 
   extractFilename(disposition) {

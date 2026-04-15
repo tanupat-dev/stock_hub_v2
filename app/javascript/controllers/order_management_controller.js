@@ -57,7 +57,22 @@ export default class extends Controller {
         },
       );
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") || "";
+
+      let data;
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+
+        console.error("Non-JSON response from /ops/orders", {
+          status: response.status,
+          body: text.slice(0, 500),
+        });
+
+        throw new Error(`Expected JSON but got: ${contentType || "unknown"}`);
+      }
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Failed to load orders");
@@ -76,6 +91,7 @@ export default class extends Controller {
         .join("");
     } catch (error) {
       console.error("loadOrders error", error);
+
       this.resultSummaryTarget.textContent = "Load failed";
       this.orderListTarget.innerHTML = `<div class="table-empty">โหลดข้อมูลไม่สำเร็จ</div>`;
     }

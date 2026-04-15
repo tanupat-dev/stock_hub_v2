@@ -110,7 +110,10 @@ export default class extends Controller {
         }),
       });
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "bind /pos/barcode_bindings",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Bind failed");
@@ -169,7 +172,10 @@ export default class extends Controller {
         }),
       });
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "clearBarcode /ops/barcode_bindings/clear",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Clear barcode failed");
@@ -218,17 +224,16 @@ export default class extends Controller {
       const response = await fetch("/ops/barcode_bindings/import", {
         method: "POST",
         headers: {
+          Accept: "application/json",
           "X-CSRF-Token": this.csrfToken(),
         },
         body: formData,
       });
 
-      const contentType = response.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error("Upload endpoint did not return JSON");
-      }
-
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "upload /ops/barcode_bindings/import",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Upload failed");
@@ -259,7 +264,11 @@ export default class extends Controller {
         `/pos/skus/facets?${new URLSearchParams(this.filtersForRequest()).toString()}`,
         { headers: this.jsonHeaders() },
       );
-      const data = await response.json();
+
+      const data = await this.parseJsonResponse(
+        response,
+        "loadFacets /pos/skus/facets",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Failed to load filters");
@@ -287,7 +296,11 @@ export default class extends Controller {
         `/pos/skus/search?${new URLSearchParams(this.filtersForRequest()).toString()}`,
         { headers: this.jsonHeaders() },
       );
-      const data = await response.json();
+
+      const data = await this.parseJsonResponse(
+        response,
+        "loadSku /pos/skus/search",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Failed to load SKU");
@@ -667,6 +680,26 @@ export default class extends Controller {
       "X-POS-KEY": this.posKey(),
       ...extra,
     };
+  }
+
+  async parseJsonResponse(response, context = "request") {
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+
+    const text = await response.text();
+
+    console.error(`${context} returned non-JSON response`, {
+      status: response.status,
+      contentType,
+      body: text.slice(0, 1000),
+    });
+
+    throw new Error(
+      `Expected JSON response but got ${contentType || "unknown content type"} (status ${response.status})`,
+    );
   }
 
   escapeHtml(value) {

@@ -3,17 +3,6 @@
 module Pos
   class SkusController < BaseController
     # GET /pos/skus/facets
-    #
-    # ใช้สำหรับ dropdown แบบไล่ brand -> model -> color -> size
-    #
-    # params optional:
-    # - brand
-    # - model
-    # - color
-    # - size
-    # - q           (match code/barcode/brand/model/color/size)
-    # - active_only (default true)
-    #
     def facets
       base = Sku.all
       base = base.where(active: true) unless active_only_false?
@@ -39,23 +28,20 @@ module Pos
           sizes: distinct_values(sizes_scope, :size)
         }
       }
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.skus.facets.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          filters: current_filters
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     # GET /pos/skus/search
-    #
-    # ใช้ list/search SKU สำหรับเลือกสินค้า
-    #
-    # params optional:
-    # - barcode
-    # - sku_code
-    # - brand
-    # - model
-    # - color
-    # - size
-    # - q
-    # - active_only (default true)
-    # - limit (default 50, max 200)
-    #
     def search
       scope = filtered_scope
       limit = normalized_limit
@@ -72,14 +58,20 @@ module Pos
         count: skus.size,
         skus: skus.map { |sku| serialize_sku(sku) }
       }
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.skus.search.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          filters: current_filters.merge(limit: params[:limit].presence)
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     # GET /pos/skus/:id/ledger
-    #
-    # params optional:
-    # - limit (default 100, max 300)
-    # - include_actions (default true)
-    # - include_movements (default true)
     def ledger
       sku = Sku.includes(:inventory_balance, sku_mappings: :shop).find(params[:id])
       limit = normalized_ledger_limit
@@ -124,6 +116,18 @@ module Pos
       }
     rescue ActiveRecord::RecordNotFound
       render json: { ok: false, error: "SKU not found" }, status: :not_found
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.skus.ledger.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          sku_id: params[:id],
+          limit: params[:limit]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def freeze
@@ -164,6 +168,17 @@ module Pos
       render json: { ok: false, error: "SKU not found" }, status: :not_found
     rescue ArgumentError => e
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.skus.freeze.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          sku_id: params[:id]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def unfreeze
@@ -202,6 +217,17 @@ module Pos
     rescue ActiveRecord::RecordNotFound
       render json: { ok: false, error: "SKU not found" }, status: :not_found
     rescue ArgumentError => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.skus.unfreeze.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          sku_id: params[:id]
+        }.to_json
+      )
+
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
@@ -305,7 +331,6 @@ module Pos
       code = shop.shop_code.to_s.strip
       name = shop.name.to_s.strip
 
-      # TikTok
       return "TikTok 1" if code == "THLCJ4W23M"
       return "TikTok 2" if code == "THLCM7WX8H"
 
@@ -315,7 +340,6 @@ module Pos
       return "TikTok 1" if name.casecmp("Thailumlongshop II").zero?
       return "TikTok 2" if name.casecmp("Young smile shoes").zero?
 
-      # Lazada
       return "Lazada 1" if code == "THJ2HAHL"
       return "Lazada 2" if code == "TH1JHM87NL"
 
@@ -325,7 +349,6 @@ module Pos
       return "Lazada 1" if name.casecmp("Thai Lumlong Shop").zero?
       return "Lazada 2" if name.casecmp("Thai Lumlong Shop II").zero?
 
-      # Shopee
       return "Shopee" if code.downcase.start_with?("shopee")
       return "Shopee" if name.downcase.start_with?("shopee")
 

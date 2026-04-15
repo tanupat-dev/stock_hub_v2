@@ -28,6 +28,15 @@ module Ops
     rescue ActiveRecord::RecordInvalid => e
       render json: { ok: false, error: e.record.errors.full_messages.to_sentence }, status: :unprocessable_entity
     rescue => e
+      Rails.logger.error(
+        {
+          event: "ops.marketplace_connections.create.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          channel: params[:channel]
+        }.to_json
+      )
+
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
@@ -46,6 +55,15 @@ module Ops
     rescue ActiveRecord::DeleteRestrictionError
       render json: { ok: false, error: "shop is still referenced and cannot be deleted" }, status: :unprocessable_entity
     rescue => e
+      Rails.logger.error(
+        {
+          event: "ops.marketplace_connections.destroy.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          id: params[:id]
+        }.to_json
+      )
+
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 

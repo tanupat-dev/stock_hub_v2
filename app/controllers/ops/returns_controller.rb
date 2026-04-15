@@ -6,7 +6,6 @@ module Ops
       @active_ops_nav = :returns
     end
 
-    # 🔥 NEW: dynamic shop list
     def shops
       shops = Shop.where(channel: %w[tiktok lazada shopee])
                   .order(:channel, :shop_code)
@@ -21,6 +20,16 @@ module Ops
           }
         end
       }
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "ops.returns.shops.failed",
+          err_class: e.class.name,
+          err_message: e.message
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
   end
 end

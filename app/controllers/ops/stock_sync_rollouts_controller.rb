@@ -10,12 +10,13 @@ module Ops
       render :page
     end
 
-
     def show
       render json: {
         ok: true,
         rollout: StockSync::RolloutState.call
       }
+    rescue => e
+      handle_error(e)
     end
 
     def update_global
@@ -26,6 +27,8 @@ module Ops
         ok: true,
         global_enabled: StockSync::Rollout.global_enabled?
       }
+    rescue => e
+      handle_error(e)
     end
 
     def update_shop
@@ -44,6 +47,10 @@ module Ops
           stock_sync_enabled: shop.stock_sync_enabled
         }
       }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "not found" }, status: :not_found
+    rescue => e
+      handle_error(e)
     end
 
     def backfill_shop
@@ -59,14 +66,17 @@ module Ops
         ok: true,
         result: result
       }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "not found" }, status: :not_found
+    rescue => e
+      handle_error(e)
     end
 
-    # ✅ NEW
     def update_prefix_mode
       mode = params[:mode].to_s
 
       unless %w[all allowlist].include?(mode)
-        return render json: { ok: false, error: "invalid_mode" }, status: 422
+        return render json: { ok: false, error: "invalid_mode" }, status: :unprocessable_content
       end
 
       SystemSetting.set!(StockSync::Rollout::PREFIX_MODE_KEY, mode)
@@ -75,13 +85,15 @@ module Ops
         ok: true,
         prefix_mode: mode
       }
+    rescue => e
+      handle_error(e)
     end
 
     def update_prefix_list
       list = params[:prefixes]
 
       unless list.is_a?(Array)
-        return render json: { ok: false, error: "prefixes_must_be_array" }, status: 422
+        return render json: { ok: false, error: "prefixes_must_be_array" }, status: :unprocessable_content
       end
 
       cleaned = list.map(&:to_s).map(&:strip).reject(&:blank?)
@@ -92,6 +104,35 @@ module Ops
         ok: true,
         prefixes: cleaned
       }
+    rescue => e
+      handle_error(e)
+    end
+
+    private
+
+    def handle_error(error)
+      Rails.logger.error(
+        {
+          event: "ops.stock_sync_rollout.failed",
+          err_class: error.class.name,
+          err_message: error.message,
+          params: safe_error_params
+        }.to_json
+      )
+
+      render json: {
+        ok: false,
+        error: error.message
+      }, status: :unprocessable_content
+    end
+
+    def safe_error_params
+      params.to_unsafe_h.slice(
+        "id",
+        "enabled",
+        "mode",
+        "prefixes"
+      )
     end
   end
 end

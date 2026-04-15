@@ -35,7 +35,11 @@ export default class extends Controller {
           headers: { Accept: "application/json" },
         });
 
-        const data = await res.json();
+        const data = await this.parseJsonResponse(
+          res,
+          "refresh /ops/stock_sync_rollout",
+        );
+
         if (!res.ok || !data.ok) {
           throw new Error(data.error || "Failed to load rollout state");
         }
@@ -242,7 +246,11 @@ export default class extends Controller {
         },
       );
 
-      const data = await res.json();
+      const data = await this.parseJsonResponse(
+        res,
+        "updateGlobal /ops/stock_sync_rollout/global",
+      );
+
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to update global setting");
       }
@@ -273,7 +281,11 @@ export default class extends Controller {
         },
       );
 
-      const data = await res.json();
+      const data = await this.parseJsonResponse(
+        res,
+        "updatePrefixMode /ops/stock_sync_rollout/prefix_mode",
+      );
+
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to update prefix mode");
       }
@@ -335,7 +347,11 @@ export default class extends Controller {
         body: JSON.stringify({ prefixes }),
       });
 
-      const data = await res.json();
+      const data = await this.parseJsonResponse(
+        res,
+        "savePrefixList /ops/stock_sync_rollout/prefix_list",
+      );
+
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to update prefix list");
       }
@@ -365,7 +381,11 @@ export default class extends Controller {
         },
       );
 
-      const data = await res.json();
+      const data = await this.parseJsonResponse(
+        res,
+        "updateShop /ops/stock_sync_rollout_shops/toggle",
+      );
+
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to update shop setting");
       }
@@ -391,7 +411,11 @@ export default class extends Controller {
         headers: { Accept: "application/json" },
       });
 
-      const data = await res.json();
+      const data = await this.parseJsonResponse(
+        res,
+        "backfill /ops/stock_sync_rollout_shops/backfill",
+      );
+
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Failed to trigger backfill");
       }
@@ -430,6 +454,26 @@ export default class extends Controller {
     this.toastTimer = setTimeout(() => {
       this.toastTarget.classList.add("hidden");
     }, 2200);
+  }
+
+  async parseJsonResponse(response, context = "request") {
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+
+    const text = await response.text();
+
+    console.error(`${context} returned non-JSON response`, {
+      status: response.status,
+      contentType,
+      body: text.slice(0, 1000),
+    });
+
+    throw new Error(
+      `Expected JSON response but got ${contentType || "unknown content type"} (status ${response.status})`,
+    );
   }
 
   escapeHtml(value) {

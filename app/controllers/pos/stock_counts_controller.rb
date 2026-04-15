@@ -16,6 +16,22 @@ module Pos
         ok: true,
         session: serialize_session(session)
       }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "not found" }, status: :not_found
+    rescue ActionController::ParameterMissing => e
+      render json: { ok: false, error: e.message }, status: :bad_request
+    rescue ArgumentError => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.stock_counts.create.failed",
+          err_class: e.class.name,
+          err_message: e.message
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     # GET /pos/stock_counts/:id
@@ -26,6 +42,19 @@ module Pos
         ok: true,
         session: serialize_session(session, include_lines: true)
       }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "not found" }, status: :not_found
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.stock_counts.show.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          id: params[:id]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     # POST /pos/stock_counts/:id/upsert_line
@@ -52,6 +81,22 @@ module Pos
       render json: { ok: false, error: e.message }, status: :bad_request
     rescue StockCount::UpsertLine::SessionNotOpen => e
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue ArgumentError => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.stock_counts.upsert_line.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          id: params[:id],
+          sku_id: params[:sku_id],
+          sku_code: params[:sku_code],
+          barcode: params[:barcode]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     # POST /pos/stock_counts/:id/confirm
@@ -74,6 +119,19 @@ module Pos
       render json: { ok: false, error: e.message }, status: :bad_request
     rescue StockCount::ConfirmSession::SessionNotOpen,
            StockCount::ConfirmSession::EmptySession => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue ArgumentError => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.stock_counts.confirm.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          id: params[:id]
+        }.to_json
+      )
+
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 

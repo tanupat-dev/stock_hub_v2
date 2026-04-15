@@ -58,6 +58,26 @@ module Ops
         },
         return_shipments: shipments.map { |shipment| serialize_shipment(shipment) }
       }
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "ops.return_shipments.index.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          params: params.to_unsafe_h.slice(
+            "q",
+            "channel",
+            "shop_id",
+            "status_store",
+            "status_marketplace",
+            "external_return_id",
+            "external_order_id",
+            "limit"
+          )
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def show
@@ -71,6 +91,17 @@ module Ops
       }
     rescue ActiveRecord::RecordNotFound
       render json: { ok: false, error: "not found" }, status: :not_found
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "ops.return_shipments.show.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          id: params[:id]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     private

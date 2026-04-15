@@ -115,6 +115,20 @@ module Pos
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
     rescue ActiveRecord::RecordInvalid => e
       render json: { ok: false, error: e.record.errors.full_messages.to_sentence }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.stock_adjustments.create.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          mode: params[:mode],
+          sku_id: params[:sku_id],
+          sku_code: params[:sku_code],
+          barcode: params[:barcode]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     private

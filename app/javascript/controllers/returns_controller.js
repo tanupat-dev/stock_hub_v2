@@ -50,7 +50,26 @@ export default class extends Controller {
         body: options.body,
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") || "";
+
+      let data;
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+
+        console.error("request returned non-JSON response", {
+          url,
+          status: response.status,
+          contentType,
+          body: text.slice(0, 1000),
+        });
+
+        throw new Error(
+          `Server returned non-JSON response (${response.status})`,
+        );
+      }
 
       if (!response.ok || data.ok === false) {
         throw new Error(data.error || "Request failed");

@@ -76,7 +76,10 @@ export default class extends Controller {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "submitConnection /ops/marketplace_connections",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Connection failed");
@@ -115,7 +118,10 @@ export default class extends Controller {
         },
       });
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        `deleteConnection /ops/marketplace_connections/${shopId}`,
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Delete failed");
@@ -174,5 +180,25 @@ export default class extends Controller {
   csrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     return meta ? meta.content : "";
+  }
+
+  async parseJsonResponse(response, context = "request") {
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+
+    const text = await response.text();
+
+    console.error(`${context} returned non-JSON response`, {
+      status: response.status,
+      contentType,
+      body: text.slice(0, 1000),
+    });
+
+    throw new Error(
+      `Expected JSON response but got ${contentType || "unknown content type"} (status ${response.status})`,
+    );
   }
 }

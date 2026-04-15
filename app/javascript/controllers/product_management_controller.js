@@ -185,12 +185,16 @@ export default class extends Controller {
       const response = await fetch(url.toString(), {
         method: "POST",
         headers: {
+          Accept: "application/json",
           "X-CSRF-Token": this.csrfToken(),
         },
         body: formData,
       });
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "submitImport /ops/sku_imports",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Upload failed");
@@ -222,9 +226,14 @@ export default class extends Controller {
       const response = await fetch(url, {
         headers: this.jsonHeaders(),
       });
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "loadFacets /pos/skus/facets",
+      );
 
-      if (!data.ok) throw new Error(data.error || "Failed to load facets");
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Failed to load facets");
+      }
 
       this.populateSelect(
         this.brandSelectTarget,
@@ -303,9 +312,14 @@ export default class extends Controller {
       const response = await fetch(url, {
         headers: this.jsonHeaders(),
       });
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "loadSkus /pos/skus/search",
+      );
 
-      if (!data.ok) throw new Error(data.error || "Failed to load skus");
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Failed to load skus");
+      }
 
       this.currentSkus = data.skus || [];
       const visibleSkus = this.applyFrontendFilters(this.currentSkus);
@@ -666,7 +680,10 @@ export default class extends Controller {
         }),
       });
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        `toggleFreeze /pos/skus/${skuId}/${action}`,
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || `${action} failed`);
@@ -897,7 +914,10 @@ export default class extends Controller {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        "submitAdjust /pos/stock_adjust",
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Adjust stock failed");
@@ -947,7 +967,10 @@ export default class extends Controller {
       const response = await fetch(`/pos/skus/${skuId}/ledger?limit=100`, {
         headers: this.jsonHeaders(),
       });
-      const data = await response.json();
+      const data = await this.parseJsonResponse(
+        response,
+        `/pos/skus/${skuId}/ledger`,
+      );
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error || "Failed to load ledger");
@@ -1167,6 +1190,25 @@ export default class extends Controller {
     } else {
       this.adjustWarningTarget.classList.add("hidden");
     }
+  }
+  async parseJsonResponse(response, context = "request") {
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+
+    const text = await response.text();
+
+    console.error(`${context} returned non-JSON response`, {
+      status: response.status,
+      contentType,
+      body: text.slice(0, 1000),
+    });
+
+    throw new Error(
+      `Expected JSON response but got ${contentType || "unknown content type"} (status ${response.status})`,
+    );
   }
 
   escapeHtml(value) {

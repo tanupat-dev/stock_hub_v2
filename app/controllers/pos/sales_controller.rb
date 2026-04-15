@@ -15,6 +15,18 @@ module Pos
         ok: true,
         sale: serialize_sale(sale, include_lines: true)
       }
+    rescue ActionController::ParameterMissing => e
+      render json: { ok: false, error: e.message }, status: :bad_request
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.create.failed",
+          err_class: e.class.name,
+          err_message: e.message
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def index
@@ -62,6 +74,17 @@ module Pos
       }
     rescue Date::Error
       render json: { ok: false, error: "invalid date" }, status: :bad_request
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.index.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          filters: current_sale_filters
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     # POST /pos/sales/lookup
@@ -76,6 +99,17 @@ module Pos
       render json: { ok: false, error: "sale not found" }, status: :not_found
     rescue ActionController::ParameterMissing => e
       render json: { ok: false, error: e.message }, status: :bad_request
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.lookup.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          params: params.to_unsafe_h.slice("id", "sale_number")
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def show
@@ -87,6 +121,17 @@ module Pos
       }
     rescue ActiveRecord::RecordNotFound
       render json: { ok: false, error: "sale not found" }, status: :not_found
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.show.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          id: params[:id]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def add_line
@@ -112,6 +157,19 @@ module Pos
       render json: { ok: false, error: e.message }, status: :bad_request
     rescue ArgumentError => e
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.add_line.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          sale_id: params[:id],
+          barcode: params[:barcode],
+          sku_code: params[:sku_code]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def update_line
@@ -135,6 +193,18 @@ module Pos
       render json: { ok: false, error: e.message }, status: :bad_request
     rescue ArgumentError => e
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.update_line.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          line_id: params[:line_id],
+          quantity: params[:quantity]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def remove_line
@@ -156,6 +226,17 @@ module Pos
     rescue ActionController::ParameterMissing => e
       render json: { ok: false, error: e.message }, status: :bad_request
     rescue ArgumentError => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.remove_line.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          line_id: params[:line_id]
+        }.to_json
+      )
+
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
@@ -180,6 +261,17 @@ module Pos
       render json: { ok: false, error: "sale not found" }, status: :not_found
     rescue ActionController::ParameterMissing => e
       render json: { ok: false, error: e.message }, status: :bad_request
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.checkout.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          sale_id: params[:id]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     def void
@@ -203,6 +295,17 @@ module Pos
       render json: { ok: false, error: "sale not found" }, status: :not_found
     rescue ActionController::ParameterMissing => e
       render json: { ok: false, error: e.message }, status: :bad_request
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.void.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          sale_id: params[:id]
+        }.to_json
+      )
+
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
     private
@@ -221,20 +324,20 @@ module Pos
       end
     end
 
-def find_sale_for_lookup!
-  scope = PosSale.includes(
-    :pos_returns,
-    :origin_exchanges,
-    :replacement_exchanges,
-    pos_sale_lines: :sku
-  )
+    def find_sale_for_lookup!
+      scope = PosSale.includes(
+        :pos_returns,
+        :origin_exchanges,
+        :replacement_exchanges,
+        pos_sale_lines: :sku
+      )
 
-  if params[:id].present?
-    scope.find(params[:id])
-  else
-    scope.find_by!(sale_number: params.require(:sale_number))
-  end
-end
+      if params[:id].present?
+        scope.find(params[:id])
+      else
+        scope.find_by!(sale_number: params.require(:sale_number))
+      end
+    end
 
     def serialize_sale(sale, include_lines:)
       active_lines =
