@@ -56,16 +56,38 @@ module Ops
     def backfill_shop
       shop = Shop.find(params[:id])
 
-      result = StockSync::BackfillShop.call!(
-        shop: shop,
-        force: true,
-        reason: "ops_rollout_backfill"
-      )
+      if shop.channel == "lazada"
+        job = PollLazadaCatalogJob.perform_later(shop.id, full: true)
 
-      render json: {
-        ok: true,
-        result: result
-      }
+        render json: {
+          ok: true,
+          mode: "catalog_backfill",
+          job_class: job.class.name,
+          job_id: job.job_id,
+          shop: {
+            id: shop.id,
+            channel: shop.channel,
+            shop_code: shop.shop_code
+          }
+        }
+      else
+        result = StockSync::BackfillShop.call!(
+          shop: shop,
+          force: true,
+          reason: "ops_rollout_backfill"
+        )
+
+        render json: {
+          ok: true,
+          mode: "stock_backfill",
+          result: result,
+          shop: {
+            id: shop.id,
+            channel: shop.channel,
+            shop_code: shop.shop_code
+          }
+        }
+      end
     rescue ActiveRecord::RecordNotFound
       render json: { ok: false, error: "not found" }, status: :not_found
     rescue => e
