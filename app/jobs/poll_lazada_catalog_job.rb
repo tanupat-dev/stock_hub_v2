@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class PollLazadaCatalogJob < ApplicationJob
-  queue_as :default
+  queue_as :poll_orders
 
   retry_on Marketplace::Lazada::Errors::TransientError,
            Net::OpenTimeout,
