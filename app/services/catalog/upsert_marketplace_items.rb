@@ -2,7 +2,7 @@
 
 module Catalog
   class UpsertMarketplaceItems
-    BATCH_SIZE = 2000
+    BATCH_SIZE = 50
 
     def self.call!(shop:, items:)
       new(shop, items).call!
@@ -39,8 +39,8 @@ module Catalog
         }
       end
 
-      # split into batches to avoid huge SQL payloads
       total = 0
+
       rows.each_slice(BATCH_SIZE) do |chunk|
         MarketplaceItem.upsert_all(
           chunk,
@@ -51,6 +51,7 @@ module Catalog
             available_stock raw_payload synced_at updated_at
           ]
         )
+
         total += chunk.size
       end
 
