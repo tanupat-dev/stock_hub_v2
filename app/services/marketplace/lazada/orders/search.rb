@@ -4,8 +4,8 @@ module Marketplace
   module Lazada
     module Orders
       class Search
-        def self.call!(shop:, update_after:, offset: 0, limit: 100)
-          new(shop).call!(update_after:, offset:, limit:)
+        def self.call!(shop:, update_after:, update_before: nil, offset: 0, limit: 100)
+          new(shop).call!(update_after:, update_before:, offset:, limit:)
         end
 
         def initialize(shop)
@@ -17,16 +17,20 @@ module Marketplace
           )
         end
 
-        def call!(update_after:, offset:, limit:)
+        def call!(update_after:, update_before:, offset:, limit:)
+          params = {
+            update_after: update_after,
+            offset: offset,
+            limit: limit,
+            sort_by: "updated_at",
+            sort_direction: "ASC"
+          }
+
+          params[:update_before] = update_before if update_before.present?
+
           data = @client.get(
             "/rest/orders/get",
-            params: {
-              update_after: update_after,
-              offset: offset,
-              limit: limit,
-              sort_by: "updated_at",
-              sort_direction: "ASC"
-            }
+            params: params
           )
 
           {
