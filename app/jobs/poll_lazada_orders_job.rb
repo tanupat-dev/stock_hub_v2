@@ -38,8 +38,8 @@ class PollLazadaOrdersJob < ApplicationJob
     cursor =
       if since.present?
         Time.at(since.to_i).utc
-      elsif shop.last_seen_update_time.present? && shop.last_seen_update_time.to_i > 0
-        Time.at(shop.last_seen_update_time.to_i).utc
+      elsif shop.lazada_orders_last_seen_update_time.present? && shop.lazada_orders_last_seen_update_time.to_i > 0
+        Time.at(shop.lazada_orders_last_seen_update_time.to_i).utc
       else
         FIRST_RUN_LOOKBACK_SECONDS.seconds.ago.utc
       end
@@ -48,7 +48,7 @@ class PollLazadaOrdersJob < ApplicationJob
 
     if window_lt <= window_ge
       shop.update_columns(
-        last_polled_at: now,
+        lazada_orders_last_polled_at: now,
         updated_at: Time.current
       )
 
@@ -57,7 +57,7 @@ class PollLazadaOrdersJob < ApplicationJob
         shop_id: shop.id,
         fetched: 0,
         pages: 0,
-        cursor_written: shop.last_seen_update_time.to_i,
+        cursor_written: shop.lazada_orders_last_seen_update_time.to_i,
         fully_drained: true
       }
     end
@@ -65,7 +65,7 @@ class PollLazadaOrdersJob < ApplicationJob
     offset = 0
     fetched = 0
     pages = 0
-    max_update_time_seen = shop.last_seen_update_time.to_i
+    max_update_time_seen = shop.lazada_orders_last_seen_update_time.to_i
     fully_drained = true
 
     loop do
@@ -140,12 +140,12 @@ class PollLazadaOrdersJob < ApplicationJob
       elsif fully_drained
         max_update_time_seen
       else
-        shop.last_seen_update_time.to_i
+        shop.lazada_orders_last_seen_update_time.to_i
       end
 
     shop.update_columns(
-      last_seen_update_time: cursor_written,
-      last_polled_at: now,
+      lazada_orders_last_seen_update_time: cursor_written,
+      lazada_orders_last_polled_at: now,
       updated_at: Time.current
     )
 
