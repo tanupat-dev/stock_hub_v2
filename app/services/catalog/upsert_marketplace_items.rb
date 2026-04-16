@@ -1,3 +1,4 @@
+# app/services/catalog/upsert_marketplace_items.rb
 # frozen_string_literal: true
 
 module Catalog
@@ -23,11 +24,17 @@ module Catalog
         ext_sku = i[:external_sku].to_s.strip
         ext_sku = nil if ext_sku.blank?
 
+        ext_product_id = i[:external_product_id].to_s.strip
+        ext_product_id = nil if ext_product_id.blank?
+
+        ext_variant_id = i[:external_variant_id].to_s.strip
+        ext_variant_id = nil if ext_variant_id.blank?
+
         {
           shop_id: @shop.id,
           channel: @shop.channel,
-          external_product_id: i[:external_product_id].to_s.presence,
-          external_variant_id: i[:external_variant_id].to_s.presence,
+          external_product_id: ext_product_id,
+          external_variant_id: ext_variant_id,
           external_sku: ext_sku,
           title: i[:title].to_s.presence,
           status: i[:status].to_s.strip.upcase.presence,
