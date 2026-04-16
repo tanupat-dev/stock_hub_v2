@@ -39,6 +39,20 @@ module Inventory
           end
 
         target_on_hand = 0 if target_on_hand < 0
+
+        # ✅ FIX: no-op guard (สำคัญ)
+        if target_on_hand == balance.on_hand
+          Rails.logger.info(
+            {
+              event: "inventory.stock_adjust.noop",
+              sku: @sku.code,
+              idempotency_key: @idempotency_key,
+              reason: "same_on_hand"
+            }.to_json
+          )
+          return :already_applied
+        end
+
         possible_oversell = target_on_hand < balance.reserved.to_i
         shortfall = [ balance.reserved.to_i - target_on_hand, 0 ].max
 

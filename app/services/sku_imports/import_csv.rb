@@ -145,12 +145,15 @@ module SkuImports
         end
 
       stock_result =
-        if @dry_run || @stock_mode == "skip"
+        if @stock_mode == "skip"
           {
             stock_updated: 0,
             stock_failed: 0,
-            stock_failed_samples: []
+            stock_failed_samples: [],
+            stock_preview: nil
           }
+        elsif @dry_run
+          simulate_stock_updates!(upsert_rows)
         else
           apply_stock_updates!(upsert_rows)
         end
@@ -176,6 +179,115 @@ module SkuImports
     end
 
     private
+
+    def simulate_stock_updates!(rows)
+      will_update = 0
+      will_noop = 0
+      will_fail = 0
+
+      failed_samples = []
+
+      rows.each_with_index do |row, idx|
+        on_hand = row[:__on_hand]
+        next if on_hand.nil?
+
+        sku_code = row[:code]
+
+        sku = Sku.find_by(code: sku_code)
+
+        unless sku
+          will_fail += 1
+          failed_samples << {
+            sku: sku_code,
+            error: "sku not found"
+          } if failed_samples.size < 20
+          next
+        end
+
+        if on_hand < 0
+          will_fail += 1
+          failed_samples << {
+            sku: sku_code,
+            error: "on_hand must be >= 0"
+          } if failed_samples.size < 20
+          next
+        end
+
+        balance = sku.inventory_balance
+        current_on_hand = balance&.on_hand.to_i
+
+        if on_hand == current_on_hand
+          will_noop += 1
+        else
+          will_update += 1
+        end
+      end
+
+      {
+        stock_updated: 0,
+        stock_failed: will_fail,
+        stock_failed_samples: failed_samples,
+        stock_preview: {
+          will_update: will_update,
+          will_noop: will_noop,
+          will_fail: will_fail
+        }
+      }
+    end
+
+    def apply_stock_updates!(rows)
+      updated = 0
+      failed = 0
+      failed_samples = []
+
+      rows.each_with_index do |row, idx|
+        on_hand = row[:__on_hand]
+        next if on_hand.nil?
+
+        sku_code = row[:code]
+
+        begin
+          sku = Sku.find_by(code: sku_code)
+          next unless sku
+
+          if on_hand < 0
+            failed += 1
+            failed_samples << {
+              sku: sku_code,
+              error: "on_hand must be >= 0"
+            } if failed_samples.size < 20
+            next
+          end
+
+          idempotency_key = "sku_import:set_exact:#{sku.code}:#{on_hand}"
+
+          result = Inventory::Adjust.call!(
+            sku: sku,
+            set_to: on_hand,
+            idempotency_key: idempotency_key,
+            meta: {
+              source: "sku_import",
+              import_type: "set_exact",
+              row_index: idx
+            }
+          )
+
+          updated += 1 if result == :adjusted
+        rescue => e
+          failed += 1
+          failed_samples << {
+            sku: sku_code,
+            error: e.message
+          } if failed_samples.size < 20
+        end
+      end
+
+      {
+        stock_updated: updated,
+        stock_failed: failed,
+        stock_failed_samples: failed_samples
+      }
+    end
 
     def validate_file!
       filename = @file.original_filename.to_s
@@ -262,60 +374,6 @@ module SkuImports
     def presence_or_nil(value)
       v = value.to_s.strip
       v.present? ? v : nil
-    end
-
-    def apply_stock_updates!(rows)
-      updated = 0
-      failed = 0
-      failed_samples = []
-
-      rows.each_with_index do |row, idx|
-        on_hand = row[:__on_hand]
-        next if on_hand.nil?
-
-        sku_code = row[:code]
-
-        begin
-          sku = Sku.find_by(code: sku_code)
-          next unless sku
-
-          if on_hand < 0
-            failed += 1
-            failed_samples << {
-              sku: sku_code,
-              error: "on_hand must be >= 0"
-            } if failed_samples.size < 20
-            next
-          end
-
-          idempotency_key = "sku_import:set_exact:#{sku.code}:#{on_hand}"
-
-          result = Inventory::Adjust.call!(
-            sku: sku,
-            set_to: on_hand,
-            idempotency_key: idempotency_key,
-            meta: {
-              source: "sku_import",
-              import_type: "set_exact",
-              row_index: idx
-            }
-          )
-
-          updated += 1 if result != :already_applied
-        rescue => e
-          failed += 1
-          failed_samples << {
-            sku: sku_code,
-            error: e.message
-          } if failed_samples.size < 20
-        end
-      end
-
-      {
-        stock_updated: updated,
-        stock_failed: failed,
-        stock_failed_samples: failed_samples
-      }
     end
 
     def log_result(payload)
