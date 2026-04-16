@@ -130,6 +130,22 @@ class PollLazadaCatalogJob < ApplicationJob
       updated_at: now
     )
 
+    sync_result = Catalog::SyncSkuMasterFromCatalog.call!(
+      shop: shop,
+      match_by: :code,
+      enqueue_sync_stock: true,
+      dry_run: false
+    )
+
+    Rails.logger.info(
+      {
+        event: "poll.lazada.catalog.sync_sku_master.done",
+        shop_id: shop.id,
+        shop_code: shop.shop_code,
+        result: sync_result
+      }.to_json
+    )
+
     Rails.logger.info(
       {
         event: "poll.lazada.catalog.done",
@@ -157,7 +173,8 @@ class PollLazadaCatalogJob < ApplicationJob
       upserted: total_upserted,
       total_products: total_products,
       truncated: truncated,
-      full: full
+      full: full,
+      sync_sku_master: sync_result
     }
   rescue => e
     now = Time.current
