@@ -20,16 +20,14 @@ class PollTiktokOrdersJob < ApplicationJob
     shop = Shop.find(shop_id)
     return unless shop.active?
     return unless shop.channel == "tiktok"
-    return if shop.tiktok_credential_id.nil? # placeholder กันพลาด
+    return if shop.tiktok_credential_id.nil?
     return if shop.shop_cipher.blank?
 
     now = Time.current
     now_ts = now.to_i
 
-    # window_lt ใช้ now - lag กัน refresh delay
     window_lt = ((until_time || now).to_i - SAFETY_LAG_SECONDS)
 
-    # cursor_ts จาก param > shop.last_seen_update_time > first run lookback
     cursor_ts =
       if since.present?
         since.to_i
@@ -42,20 +40,24 @@ class PollTiktokOrdersJob < ApplicationJob
     window_ge = [ cursor_ts - SAFETY_LAG_SECONDS, 0 ].max
     window_lt = [ window_lt, window_ge ].max
 
-    # ✅ window ว่างก็ไม่ต้องยิง API
     if window_lt <= window_ge
       shop.update_columns(last_polled_at: now, updated_at: Time.current)
-      return { ok: true, fetched: 0, pages: 0, cursor_written: cursor_ts }
+      return { ok: true, fetched: 0, pages: 0, cursor_written: cursor_ts, fully_drained: true }
     end
 
     pages = 0
     fetched = 0
     max_update_time_seen = window_ge
     page_token = nil
+    fully_drained = true
 
     loop do
+      if pages >= MAX_PAGES
+        fully_drained = false
+        break
+      end
+
       pages += 1
-      raise "poll exceeded max pages (#{MAX_PAGES})" if pages > MAX_PAGES
 
       resp = Marketplace::Tiktok::Orders::Search.call!(
         shop: shop,
@@ -68,7 +70,6 @@ class PollTiktokOrdersJob < ApplicationJob
       rows = Array(resp[:rows])
       fetched += rows.size
 
-      # ✅ สำคัญ: rows ว่าง "ห้าม" upsert
       if rows.any?
         Orders::UpsertFromSearchRows.call!(shop: shop, rows: rows)
         enrich_missing_tiktok_details!(shop: shop, rows: rows)
@@ -83,10 +84,14 @@ class PollTiktokOrdersJob < ApplicationJob
       break if page_token.blank?
     end
 
-    # ✅ cursor advance:
-    # - ถ้าไม่มี rows เลย ให้ขยับไป window_lt (แปลว่าเรา cover ช่วงนี้แล้ว)
-    # - ถ้ามี rows ให้ขยับไป max_update_time_seen
-    cursor_written = (fetched == 0 ? window_lt : max_update_time_seen)
+    cursor_written =
+      if fetched == 0
+        window_lt
+      elsif fully_drained
+        max_update_time_seen
+      else
+        cursor_ts
+      end
 
     shop.update_columns(
       last_seen_update_time: cursor_written,
@@ -103,11 +108,19 @@ class PollTiktokOrdersJob < ApplicationJob
         update_time_lt: window_lt,
         cursor_written: cursor_written,
         fetched: fetched,
-        pages: pages
+        pages: pages,
+        fully_drained: fully_drained
       }.to_json
     )
 
-    { ok: true, shop_id: shop.id, fetched: fetched, pages: pages, cursor_written: cursor_written }
+    {
+      ok: true,
+      shop_id: shop.id,
+      fetched: fetched,
+      pages: pages,
+      cursor_written: cursor_written,
+      fully_drained: fully_drained
+    }
   end
 
   private
@@ -122,7 +135,7 @@ class PollTiktokOrdersJob < ApplicationJob
 
         Orders::Tiktok::UpdateFromDetail.call!(
           order: order,
-          detail: detail
+          payload: detail
         )
       rescue => e
         Rails.logger.warn(
