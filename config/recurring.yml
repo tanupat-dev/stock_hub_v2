@@ -22,8 +22,8 @@ production:
     class: InventoryReconcileAllShopsJob
     queue: reconcile
     args:
-      - { fresh_within: 21600, push_limit: 100 }
-    schedule: every 10 minutes
+      - { fresh_within: 21600, push_limit: 20 }
+    schedule: every 30 minutes
 <% end %>
 
 <% if ENV["ENABLE_POLL_RETURNS"] == "true" %>
@@ -53,14 +53,14 @@ production:
           max_pages: 200,
           page_size: 50,
         }
-    schedule: every 30 minutes
+    schedule: every 6 hours
 
   poll_lazada_all_shops_catalog:
     class: PollLazadaAllShopsCatalogJob
     queue: default
     args:
       - { filter: "all", limit: 20, max_pages: 200, full: false }
-    schedule: every 30 minutes
+    schedule: every 6 hours
 <% end %>
 
   cleanup_stock_sync_requests:
