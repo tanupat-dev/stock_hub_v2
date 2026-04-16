@@ -21,6 +21,7 @@ class PollLazadaOrdersJob < ApplicationJob
 
   FIRST_RUN_LOOKBACK_SECONDS = 3600
   LIMIT = 100
+  MAX_PAGES = 20 # 🔥 กัน OOM
 
   def perform(shop_id, since: nil)
     started_at = Time.current
@@ -33,11 +34,16 @@ class PollLazadaOrdersJob < ApplicationJob
     cursor =
       if since.present?
         Time.at(since.to_i).utc
-      elsif shop.last_seen_update_time.present?
+      elsif shop.last_seen_update_time.present? && shop.last_seen_update_time.to_i > 0
         Time.at(shop.last_seen_update_time.to_i).utc
       else
         FIRST_RUN_LOOKBACK_SECONDS.seconds.ago.utc
       end
+
+    # 🔥 HARD GUARD: กันย้อนเกิน 1 วัน
+    if cursor < 1.day.ago
+      cursor = 1.day.ago
+    end
 
     offset = 0
     fetched = 0
@@ -45,6 +51,8 @@ class PollLazadaOrdersJob < ApplicationJob
     max_update_time_seen = shop.last_seen_update_time.to_i
 
     loop do
+      break if pages >= MAX_PAGES
+
       resp = Marketplace::Lazada::Orders::Search.call!(
         shop: shop,
         update_after: cursor.iso8601,
@@ -98,6 +106,9 @@ class PollLazadaOrdersJob < ApplicationJob
       )
 
       break if orders.size < LIMIT
+
+      # 🔥 throttle กันยิง API ถี่เกิน
+      sleep(rand * 0.3 + 0.2)
     end
 
     shop.update_columns(
