@@ -261,7 +261,9 @@ module Ops
           Array(payload["line_items"]).first&.dig("tracking_number").presence
       when "lazada"
         payload["tracking_number"].presence ||
-          Array(payload["line_items"]).first&.dig("tracking_number").presence
+          payload["tracking_code"].presence ||
+          Array(payload["line_items"]).first&.dig("tracking_number").presence ||
+          Array(payload["line_items"]).first&.dig("tracking_code").presence
       when "shopee"
         payload["tracking_no"].presence ||
           payload["tracking_number"].presence
