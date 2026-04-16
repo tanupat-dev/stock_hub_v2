@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_12_021901) do
+ActiveRecord::Schema[8.0].define(version: 2026_04_16_145734) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -458,12 +458,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_12_021901) do
     t.bigint "lazada_returns_last_seen_update_time"
     t.datetime "lazada_returns_last_polled_at"
     t.boolean "stock_sync_enabled", default: false, null: false
+    t.bigint "lazada_orders_last_seen_update_time"
+    t.datetime "lazada_orders_last_polled_at"
     t.index ["catalog_last_polled_at"], name: "index_shops_on_catalog_last_polled_at"
     t.index ["channel", "active"], name: "index_shops_on_channel_and_active"
     t.index ["channel", "shop_code"], name: "index_shops_on_channel_and_shop_code", unique: true
     t.index ["external_shop_id"], name: "index_shops_on_external_shop_id"
     t.index ["lazada_app_id"], name: "index_shops_on_lazada_app_id"
     t.index ["lazada_credential_id"], name: "index_shops_on_lazada_credential_id"
+    t.index ["lazada_orders_last_polled_at"], name: "idx_shops_lazada_orders_polled_at"
+    t.index ["lazada_orders_last_seen_update_time"], name: "idx_shops_lazada_orders_cursor"
     t.index ["lazada_returns_last_polled_at"], name: "index_shops_on_lazada_returns_last_polled_at"
     t.index ["lazada_returns_last_seen_update_time"], name: "index_shops_on_lazada_returns_last_seen_update_time"
     t.index ["shop_cipher"], name: "index_shops_on_shop_cipher"
