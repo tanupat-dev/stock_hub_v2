@@ -1,3 +1,4 @@
+# app/services/shipping_exports/row_builder.rb
 # frozen_string_literal: true
 
 module ShippingExports
@@ -158,16 +159,44 @@ module ShippingExports
     def export_shop_label(shop)
       return nil if shop.nil?
 
-      case shop.shop_code.to_s
-      when "tiktok_1" then "TikTok 1"
-      when "tiktok_2" then "TikTok 2"
-      when "lazada_1" then "Lazada 1"
-      when "lazada_2" then "Lazada 2"
-      when "shopee_1" then "Shopee"
-      when "pos" then "POS"
-      else
-        shop.shop_code
-      end
+      code = shop.shop_code.to_s.strip
+      code_downcase = code.downcase
+      name = shop.name.to_s.strip
+
+      # TikTok
+      return "TikTok 1" if code == "THLCJ4W23M"
+      return "TikTok 2" if code == "THLCM7WX8H"
+
+      return "TikTok 1" if code_downcase == "tiktok_1"
+      return "TikTok 2" if code_downcase == "tiktok_2"
+
+      return "TikTok 1" if code_downcase.start_with?("tiktok_shop_") && name.casecmp("Tiktok 1").zero?
+      return "TikTok 2" if code_downcase.start_with?("tiktok_shop_") && name.casecmp("Tiktok 2").zero?
+
+      return "TikTok 1" if name.casecmp("Thailumlongshop II").zero?
+      return "TikTok 2" if name.casecmp("Young smile shoes").zero?
+
+      # Lazada
+      return "Lazada 1" if code == "THJ2HAHL"
+      return "Lazada 2" if code == "TH1JHM87NL"
+
+      return "Lazada 1" if code_downcase == "lazada_1"
+      return "Lazada 2" if code_downcase == "lazada_2"
+
+      return "Lazada 1" if code_downcase.start_with?("lazada_shop_") && name.casecmp("Lazada 1").zero?
+      return "Lazada 2" if code_downcase.start_with?("lazada_shop_") && name.casecmp("Lazada 2").zero?
+
+      return "Lazada 1" if name.casecmp("Thai Lumlong Shop").zero?
+      return "Lazada 2" if name.casecmp("Thai Lumlong Shop II").zero?
+      return "Lazada 1" if name.casecmp("Lazada 1").zero?
+      return "Lazada 2" if name.casecmp("Lazada 2").zero?
+
+      # Shopee / POS
+      return "Shopee" if code_downcase.start_with?("shopee")
+      return "Shopee" if name.downcase.start_with?("shopee")
+      return "POS" if code_downcase == "pos" || code_downcase.start_with?("pos")
+
+      name.presence || code
     end
   end
 end
