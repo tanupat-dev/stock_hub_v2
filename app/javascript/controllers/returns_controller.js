@@ -291,7 +291,7 @@ export default class extends Controller {
 
             <div class="market-order-card__badges">
               <span class="market-pill market-pill--channel">${this.escapeHtml(r.channel || "-")}</span>
-              <span class="market-pill market-pill--shop">${this.escapeHtml(r.shop_code || "-")}</span>
+              <span class="market-pill market-pill--shop">${this.escapeHtml(r.shop_label || r.shop_code || "-")}</span>
               <span class="market-pill market-pill--status ${statusClass}">
                 ${this.escapeHtml(this.humanizeStoreStatus(r.derived_status_store))}
               </span>

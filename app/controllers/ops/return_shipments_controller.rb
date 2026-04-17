@@ -1,3 +1,4 @@
+# app/controllers/ops/return_shipments_controller.rb
 # frozen_string_literal: true
 
 module Ops
@@ -82,7 +83,7 @@ module Ops
 
     def show
       shipment = ReturnShipment
-                   .includes(:shop, :order, { return_shipment_lines: [ :sku, :order_line ] }, :return_scans)
+                   .includes(:shop, :order, { return_shipment_lines: [:sku, :order_line] }, :return_scans)
                    .find(params[:id])
 
       render json: {
@@ -120,6 +121,7 @@ module Ops
         channel: shipment.channel,
         shop_id: shipment.shop_id,
         shop_code: shipment.shop&.shop_code,
+        shop_label: human_shop_label(shipment.shop),
         order_id: shipment.order_id,
         external_order_id: shipment.external_order_id,
         external_return_id: shipment.external_return_id,
@@ -175,6 +177,23 @@ module Ops
           }
         end
       )
+    end
+
+    def human_shop_label(shop)
+      return "-" if shop.nil?
+
+      code = shop.shop_code.to_s
+      name = shop.name.to_s
+
+      return "Lazada 1" if code.include?("thj2hahl")
+      return "Lazada 2" if code.include?("th1jhm87nl")
+
+      return "TikTok 1" if code.include?("7468184483922740997") || code == "THLCJ4W23M"
+      return "TikTok 2" if code.include?("7469737153154172677") || code == "THLCM7WX8H"
+
+      return "Shopee" if code.start_with?("shopee")
+
+      name.presence || code
     end
   end
 end
