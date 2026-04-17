@@ -109,7 +109,7 @@ export default class extends Controller {
     const options = [
       `<option value="">All</option>`,
       ...this.shops.map(
-        (s) => `<option value="${s.id}">${s.shop_code}</option>`,
+        (s) => `<option value="${s.id}">${s.label || s.shop_code}</option>`,
       ),
     ];
 
@@ -135,7 +135,7 @@ export default class extends Controller {
       ...filtered.map(
         (s) => `
           <option value="${s.id}" ${selectedStillExists && String(s.id) === String(currentSelectedShopId) ? "selected" : ""}>
-            ${s.shop_code}
+            ${s.label || s.shop_code}
           </option>
         `,
       ),
