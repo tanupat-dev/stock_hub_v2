@@ -21,7 +21,10 @@ module Ops
         scope = scope.where(channel: params[:channel].to_s.strip)
       end
 
-      if params[:shop_id].present?
+      if params[:shop_group].present?
+        shop_ids = shop_ids_for_group(params[:shop_group])
+        scope = shop_ids.any? ? scope.where(shop_id: shop_ids) : scope.none
+      elsif params[:shop_id].present?
         scope = scope.where(shop_id: params[:shop_id].to_i)
       end
 
@@ -51,6 +54,7 @@ module Ops
           q: params[:q],
           channel: params[:channel],
           shop_id: params[:shop_id],
+          shop_group: params[:shop_group],
           status_store: params[:status_store],
           status_marketplace: params[:status_marketplace],
           external_return_id: params[:external_return_id],
@@ -69,6 +73,7 @@ module Ops
             "q",
             "channel",
             "shop_id",
+            "shop_group",
             "status_store",
             "status_marketplace",
             "external_return_id",
@@ -83,7 +88,7 @@ module Ops
 
     def show
       shipment = ReturnShipment
-                   .includes(:shop, :order, { return_shipment_lines: [:sku, :order_line] }, :return_scans)
+                   .includes(:shop, :order, { return_shipment_lines: [ :sku, :order_line ] }, :return_scans)
                    .find(params[:id])
 
       render json: {
@@ -177,6 +182,27 @@ module Ops
           }
         end
       )
+    end
+
+    def shop_ids_for_group(group_key)
+      shops = Shop.where(channel: %w[tiktok lazada shopee]).to_a
+
+      shops.select { |shop| shop_group_key(shop) == group_key.to_s.strip }
+           .map(&:id)
+    end
+
+    def shop_group_key(shop)
+      label = human_shop_label(shop)
+
+      case label
+      when "Lazada 1" then "lazada_1"
+      when "Lazada 2" then "lazada_2"
+      when "TikTok 1" then "tiktok_1"
+      when "TikTok 2" then "tiktok_2"
+      when "Shopee 1", "Shopee" then "shopee_1"
+      else
+        shop.shop_code.to_s
+      end
     end
 
     def human_shop_label(shop)

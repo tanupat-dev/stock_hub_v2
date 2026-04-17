@@ -109,7 +109,8 @@ export default class extends Controller {
     const options = [
       `<option value="">All</option>`,
       ...this.shops.map(
-        (s) => `<option value="${s.id}">${s.label || s.shop_code}</option>`,
+        (s) =>
+          `<option value="${s.value}">${this.escapeHtml(s.label || s.value)}</option>`,
       ),
     ];
 
@@ -120,22 +121,22 @@ export default class extends Controller {
     if (!this.hasShopSelectTarget) return;
 
     const channel = this.channelSelectTarget.value;
-    const currentSelectedShopId = this.shopSelectTarget.value;
+    const currentSelectedValue = this.shopSelectTarget.value;
 
     const filtered = channel
       ? this.shops.filter((s) => s.channel === channel)
       : this.shops;
 
     const selectedStillExists = filtered.some(
-      (s) => String(s.id) === String(currentSelectedShopId),
+      (s) => String(s.value) === String(currentSelectedValue),
     );
 
     const options = [
       `<option value="">All</option>`,
       ...filtered.map(
         (s) => `
-          <option value="${s.id}" ${selectedStillExists && String(s.id) === String(currentSelectedShopId) ? "selected" : ""}>
-            ${s.label || s.shop_code}
+          <option value="${s.value}" ${selectedStillExists && String(s.value) === String(currentSelectedValue) ? "selected" : ""}>
+            ${this.escapeHtml(s.label || s.value)}
           </option>
         `,
       ),
@@ -162,7 +163,7 @@ export default class extends Controller {
     }
 
     if (this.shopSelectTarget.value) {
-      params.append("shop_id", this.shopSelectTarget.value);
+      params.append("shop_group", this.shopSelectTarget.value);
     }
 
     if (this.statusSelectTarget.value) {

@@ -10,16 +10,29 @@ module Ops
       shops = Shop.where(channel: %w[tiktok lazada shopee])
                   .order(:channel, :shop_code)
 
+      grouped = shops.group_by { |shop| shop_group_key(shop) }
+
+      options = grouped.map do |group_key, group_shops|
+        sample = group_shops.first
+
+        {
+          value: group_key,
+          label: human_shop_label(sample),
+          channel: sample.channel,
+          shop_ids: group_shops.map(&:id).uniq.sort
+        }
+      end
+
+      options.sort_by! do |opt|
+        [
+          channel_sort_key(opt[:channel]),
+          label_sort_key(opt[:label])
+        ]
+      end
+
       render json: {
         ok: true,
-        shops: shops.map do |s|
-          {
-            id: s.id,
-            shop_code: s.shop_code,
-            channel: s.channel,
-            label: human_shop_label(s) # ✅ NEW
-          }
-        end
+        shops: options
       }
     rescue => e
       Rails.logger.error(
@@ -35,19 +48,55 @@ module Ops
 
     private
 
-    def human_shop_label(shop)
-      code = shop.shop_code.to_s
+    def shop_group_key(shop)
+      label = human_shop_label(shop)
 
-      # Lazada
+      case label
+      when "Lazada 1" then "lazada_1"
+      when "Lazada 2" then "lazada_2"
+      when "TikTok 1" then "tiktok_1"
+      when "TikTok 2" then "tiktok_2"
+      when "Shopee 1", "Shopee" then "shopee_1"
+      else
+        shop.shop_code.to_s
+      end
+    end
+
+    def human_shop_label(shop)
+      return "-" if shop.nil?
+
+      code = shop.shop_code.to_s
+      name = shop.name.to_s
+
       return "Lazada 1" if code.include?("thj2hahl")
       return "Lazada 2" if code.include?("th1jhm87nl")
 
-      # TikTok
       return "TikTok 1" if code.include?("7468184483922740997") || code == "THLCJ4W23M"
       return "TikTok 2" if code.include?("7469737153154172677") || code == "THLCM7WX8H"
 
-      # fallback
-      shop.name.presence || shop.shop_code
+      return "Shopee 1" if code.start_with?("shopee")
+
+      name.presence || code
+    end
+
+    def channel_sort_key(channel)
+      case channel.to_s
+      when "lazada" then 1
+      when "shopee" then 2
+      when "tiktok" then 3
+      else 9
+      end
+    end
+
+    def label_sort_key(label)
+      case label.to_s
+      when "Lazada 1" then 1
+      when "Lazada 2" then 2
+      when "Shopee 1", "Shopee" then 3
+      when "TikTok 1" then 4
+      when "TikTok 2" then 5
+      else 99
+      end
     end
   end
 end
