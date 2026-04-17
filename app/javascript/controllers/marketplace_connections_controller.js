@@ -1,3 +1,4 @@
+// app/javascript/controllers/marketplace_connections_controller.js
 import { Controller } from "@hotwired/stimulus";
 
 export default class extends Controller {
@@ -19,6 +20,10 @@ export default class extends Controller {
     "tiktokCopyButton",
     "lazadaCopyButton",
   ];
+
+  connect() {
+    this.resetForms();
+  }
 
   async submitTiktok(event) {
     event.preventDefault();
@@ -89,6 +94,7 @@ export default class extends Controller {
         throw new Error("Missing connect URL");
       }
 
+      this.resetForms();
       window.location.href = data.connect_url;
     } catch (error) {
       this.showError(errorBox, error.message || "Connection failed");
@@ -165,6 +171,21 @@ export default class extends Controller {
         button.textContent = originalText;
       }, 1200);
     }
+  }
+
+  resetForms() {
+    if (this.hasTiktokShopNameTarget) this.tiktokShopNameTarget.value = "";
+    if (this.hasTiktokShopIdTarget) this.tiktokShopIdTarget.value = "";
+    if (this.hasTiktokAppKeyTarget) this.tiktokAppKeyTarget.value = "";
+    if (this.hasTiktokAppSecretTarget) this.tiktokAppSecretTarget.value = "";
+
+    if (this.hasLazadaShopNameTarget) this.lazadaShopNameTarget.value = "";
+    if (this.hasLazadaSellerIdTarget) this.lazadaSellerIdTarget.value = "";
+    if (this.hasLazadaAppKeyTarget) this.lazadaAppKeyTarget.value = "";
+    if (this.hasLazadaAppSecretTarget) this.lazadaAppSecretTarget.value = "";
+
+    if (this.hasTiktokErrorTarget) this.clearError(this.tiktokErrorTarget);
+    if (this.hasLazadaErrorTarget) this.clearError(this.lazadaErrorTarget);
   }
 
   showError(target, message) {
