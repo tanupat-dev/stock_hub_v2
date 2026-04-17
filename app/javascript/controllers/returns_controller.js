@@ -651,15 +651,21 @@ export default class extends Controller {
   shipmentHintFor(shipment) {
     const storeStatus =
       shipment?.derived_status_store || shipment?.status_store;
-    const marketplaceStatus = (shipment?.status_marketplace || "")
-      .toString()
-      .toLowerCase();
 
+    const hasTracking = !!shipment?.tracking_number;
+    const hasCarrier = !!shipment?.return_carrier_method;
+
+    // ✅ STORE TRUTH (สำคัญสุด)
     if (storeStatus === "received_scanned") return "Received at store";
     if (storeStatus === "partial_scanned") return "Partially received at store";
-    if (shipment?.tracking_number) return "In transit / shipped back";
-    if (shipment?.return_carrier_method) return "Waiting for buyer to ship";
-    if (marketplaceStatus === "completed") return "Completed in marketplace";
+
+    // ❌ ห้ามใช้ marketplace completed = received
+    // ❌ ห้ามใช้ returned_delivered_at
+
+    // ✅ Shipment truth (safe)
+    if (hasTracking) return "In transit / shipped back";
+    if (hasCarrier) return "Waiting for buyer to ship";
+
     return "Return requested";
   }
 
@@ -699,10 +705,13 @@ export default class extends Controller {
     switch ((status || "").toString()) {
       case "requested":
         return "Requested";
+
       case "shipped_back":
-        return "In transit / shipped back";
+        return "In transit";
+
       case "completed":
-        return "Completed";
+        return "Completed (refund done)";
+
       default:
         return status || "-";
     }

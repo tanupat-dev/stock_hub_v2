@@ -9,7 +9,6 @@ module Returns
         SELLER_RECEIVED_RETURN
         SELLER_CONFIRM_RECEIVE
         WAREHOUSE_RECEIVED_RETURN
-        SELLER_REJECT_RECEIVE_DELIVERED_TIMEOUT
       ].freeze
 
       RECEIVED_RETURN_KEYWORDS = [
@@ -17,12 +16,9 @@ module Returns
         "seller confirm receive",
         "returned package approved by seller",
         "warehouse received",
-        "return delivered",
         "returned item received",
         "received the returned item",
-        "return has been delivered",
-        "auto approved the request",
-        "seller did not approve return parcel request within the timeframe"
+        "return has been delivered"
       ].freeze
 
       PHYSICAL_RETURN_EVENTS = %w[
@@ -38,10 +34,6 @@ module Returns
       RETURN_TYPE_VALUES = %w[
         RETURN
         RETURN_AND_REFUND
-      ].freeze
-
-      TERMINAL_RECEIVED_STATUSES = %w[
-        RETURN_OR_REFUND_REQUEST_COMPLETE
       ].freeze
 
       def self.call(raw_return:, records: nil)
@@ -113,9 +105,9 @@ module Returns
 
       def extract_returned_delivered_at
         delivered_record = matched_delivered_record
-        return to_time(delivered_record["create_time"]) if delivered_record.present?
+        return nil if delivered_record.blank?
 
-        fallback_from_status
+        to_time(delivered_record["create_time"])
       end
 
       def matched_delivered_record
@@ -127,14 +119,6 @@ module Returns
           RECEIVED_RETURN_EVENTS.include?(event) ||
             RECEIVED_RETURN_KEYWORDS.any? { |keyword| desc.include?(keyword) || note.include?(keyword) }
         end
-      end
-
-      def fallback_from_status
-        status = @raw_return["return_status"].to_s.strip.upcase
-        return nil unless TERMINAL_RECEIVED_STATUSES.include?(status)
-        return nil unless physical_return?
-
-        to_time(@raw_return["update_time"])
       end
 
       def physical_return?
