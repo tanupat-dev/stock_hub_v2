@@ -1,3 +1,4 @@
+# app/services/shipping_exports/order_scope.rb
 # frozen_string_literal: true
 
 module ShippingExports
@@ -45,7 +46,10 @@ module ShippingExports
     def apply_shop(scope)
       return scope if filters[:shop].blank?
 
-      scope.where(shops: { shop_code: normalize_shop_filter(filters[:shop]) })
+      shop_codes = normalize_shop_filter(filters[:shop])
+      return scope.none if shop_codes.empty?
+
+      scope.where(shops: { shop_code: shop_codes })
     end
 
     def apply_date_from(scope)
@@ -119,17 +123,7 @@ module ShippingExports
     end
 
     def normalize_shop_filter(value)
-      raw = value.to_s.strip
-
-      case raw
-      when "TikTok 1" then "tiktok_1"
-      when "TikTok 2" then "tiktok_2"
-      when "Lazada 1" then "lazada_1"
-      when "Lazada 2" then "lazada_2"
-      when "Shopee" then "shopee_1"
-      when "POS" then "pos"
-      else raw
-      end
+      Shop.normalize_filter_codes(value)
     end
 
     def normalize_status_filter(value)

@@ -1,3 +1,4 @@
+# app/controllers/ops/orders_controller.rb
 # frozen_string_literal: true
 
 module Ops
@@ -119,8 +120,10 @@ module Ops
       end
 
       if params[:shop].present?
-        normalized_shop_code = normalize_shop_filter(params[:shop])
-        scope = scope.joins(:shop).where(shops: { shop_code: normalized_shop_code })
+        normalized_shop_codes = normalize_shop_filter(params[:shop])
+        return Order.none if normalized_shop_codes.empty?
+
+        scope = scope.joins(:shop).where(shops: { shop_code: normalized_shop_codes })
       end
 
       if params[:date_from].present?
@@ -155,7 +158,10 @@ module Ops
       end
 
       if params[:shop].present?
-        return PosSale.none unless normalize_shop_filter(params[:shop]) == "pos"
+        normalized_shop_codes = normalize_shop_filter(params[:shop])
+        return PosSale.none if normalized_shop_codes.empty?
+
+        scope = scope.joins(:shop).where(shops: { shop_code: normalized_shop_codes })
       end
 
       if params[:date_from].present?
@@ -218,7 +224,7 @@ module Ops
         channel: "pos",
         display_channel: "POS",
         shop: sale.shop&.shop_code,
-        display_shop: "POS",
+        display_shop: shop_label(sale.shop),
         status: sale.status,
         logistic_provider: nil,
         tracking_number: nil,
@@ -332,34 +338,11 @@ module Ops
     end
 
     def shop_label(shop)
-      return "-" if shop.nil?
-
-      case shop.shop_code.to_s
-      when /\Atiktok_(\d+)\z/i
-        "TikTok #{$1}"
-      when /\Alazada_(\d+)\z/i
-        "Lazada #{$1}"
-      when /\Ashopee_(\d+)\z/i
-        "Shopee"
-      when /\Apos\z/i
-        "POS"
-      else
-        shop.name.presence || shop.shop_code
-      end
+      Shop.display_label_for(shop)
     end
 
     def normalize_shop_filter(value)
-      raw = value.to_s.strip
-
-      case raw
-      when "TikTok 1" then "tiktok_1"
-      when "TikTok 2" then "tiktok_2"
-      when "Lazada 1" then "lazada_1"
-      when "Lazada 2" then "lazada_2"
-      when "Shopee" then "shopee_1"
-      when "POS" then "pos"
-      else raw
-      end
+      Shop.normalize_filter_codes(value)
     end
 
     def normalize_order_status_filter(value)
