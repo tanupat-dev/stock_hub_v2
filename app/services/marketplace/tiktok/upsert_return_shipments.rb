@@ -162,7 +162,7 @@ module Marketplace
       end
 
       def preserve_returned_delivered_at(existing_value:, new_value:)
-        new_value.presence || existing_value
+        new_value.presence
       end
 
       def build_meta(existing_meta:, transformed:, records:)
