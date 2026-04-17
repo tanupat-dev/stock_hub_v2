@@ -1,3 +1,4 @@
+<!-- app/views/ops/marketplace_connections/_lazada_form.html.erb -->
 <article class="marketplace-card">
   <div class="marketplace-card__header">
     <div>
@@ -11,7 +12,11 @@
   <form
     class="connection-form"
     data-action="submit->marketplace-connections#submitLazada"
+    autocomplete="off"
   >
+    <input type="text" name="fake_username" autocomplete="username" style="display:none">
+    <input type="password" name="fake_password" autocomplete="current-password" style="display:none">
+
     <div
       class="form-alert is-hidden"
       data-marketplace-connections-target="lazadaError"
@@ -22,11 +27,15 @@
         <label class="form-label" for="lazada_shop_name">Shop Name</label>
         <input
           id="lazada_shop_name"
-          name="shop_name"
+          name="lazada_shop_name_input"
           type="text"
           class="form-input"
           placeholder="e.g. Lazada Main Shop"
           data-marketplace-connections-target="lazadaShopName"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
         >
       </div>
 
@@ -34,11 +43,15 @@
         <label class="form-label" for="lazada_seller_id">Seller ID / Short Code</label>
         <input
           id="lazada_seller_id"
-          name="seller_id"
+          name="lazada_seller_id_input"
           type="text"
           class="form-input"
           placeholder="Enter seller ID or short code"
           data-marketplace-connections-target="lazadaSellerId"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
           required
         >
         <div class="form-help">
@@ -50,11 +63,15 @@
         <label class="form-label" for="lazada_app_key">App Key</label>
         <input
           id="lazada_app_key"
-          name="app_key"
+          name="lazada_app_key_input"
           type="text"
           class="form-input"
           placeholder="Enter Lazada app key"
           data-marketplace-connections-target="lazadaAppKey"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
           required
         >
       </div>
@@ -63,11 +80,15 @@
         <label class="form-label" for="lazada_app_secret">App Secret</label>
         <input
           id="lazada_app_secret"
-          name="app_secret"
+          name="lazada_app_secret_input"
           type="password"
           class="form-input"
           placeholder="Enter Lazada app secret"
           data-marketplace-connections-target="lazadaAppSecret"
+          autocomplete="new-password"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
           required
         >
       </div>
