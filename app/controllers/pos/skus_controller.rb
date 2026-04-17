@@ -1,3 +1,4 @@
+# app/controllers/pos/skus_controller.rb
 # frozen_string_literal: true
 
 module Pos
@@ -329,28 +330,43 @@ module Pos
 
     def canonical_shop_label(shop)
       code = shop.shop_code.to_s.strip
+      code_downcase = code.downcase
       name = shop.name.to_s.strip
 
+      # TikTok
       return "TikTok 1" if code == "THLCJ4W23M"
       return "TikTok 2" if code == "THLCM7WX8H"
 
-      return "TikTok 1" if code.casecmp("tiktok_1").zero?
-      return "TikTok 2" if code.casecmp("tiktok_2").zero?
+      return "TikTok 1" if code_downcase == "tiktok_1"
+      return "TikTok 2" if code_downcase == "tiktok_2"
+
+      return "TikTok 1" if code_downcase.start_with?("tiktok_shop_") && name.casecmp("Tiktok 1").zero?
+      return "TikTok 2" if code_downcase.start_with?("tiktok_shop_") && name.casecmp("Tiktok 2").zero?
 
       return "TikTok 1" if name.casecmp("Thailumlongshop II").zero?
       return "TikTok 2" if name.casecmp("Young smile shoes").zero?
 
+      # Lazada
       return "Lazada 1" if code == "THJ2HAHL"
       return "Lazada 2" if code == "TH1JHM87NL"
 
-      return "Lazada 1" if code.casecmp("lazada_1").zero?
-      return "Lazada 2" if code.casecmp("lazada_2").zero?
+      return "Lazada 1" if code_downcase == "lazada_1"
+      return "Lazada 2" if code_downcase == "lazada_2"
 
+      # production จริงตอนนี้เป็น lazada_shop_<seller_id>
+      return "Lazada 1" if code_downcase.start_with?("lazada_shop_") && name.casecmp("Lazada 1").zero?
+      return "Lazada 2" if code_downcase.start_with?("lazada_shop_") && name.casecmp("Lazada 2").zero?
+
+      # fallback ตามชื่อ
       return "Lazada 1" if name.casecmp("Thai Lumlong Shop").zero?
       return "Lazada 2" if name.casecmp("Thai Lumlong Shop II").zero?
+      return "Lazada 1" if name.casecmp("Lazada 1").zero?
+      return "Lazada 2" if name.casecmp("Lazada 2").zero?
 
-      return "Shopee" if code.downcase.start_with?("shopee")
+      # Shopee / POS
+      return "Shopee" if code_downcase.start_with?("shopee")
       return "Shopee" if name.downcase.start_with?("shopee")
+      return "POS" if code_downcase == "pos" || code_downcase.start_with?("pos")
 
       code.presence || name.presence
     end
