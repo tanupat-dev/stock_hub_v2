@@ -1,5 +1,11 @@
 <section data-controller="product-management">
   <% page_actions = capture do %>
+  <button
+    type="button"
+    class="btn btn-secondary"
+    onclick="window.location='/ops/products/export_skus'">
+    Export SKU Excel
+  </button>
     <button
       type="button"
       class="btn btn-secondary"

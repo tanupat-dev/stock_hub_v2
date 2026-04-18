@@ -32,6 +32,12 @@ Rails.application.routes.draw do
     get "returns/shops", to: "returns#shops"
     resources :return_shipments, only: [ :index, :show ]
 
+    resources :products, only: [] do
+      collection do
+        get :export_skus
+      end
+    end
+
     resources :file_batches, only: [ :index ]
 
     resources :marketplace_connections, only: [ :index, :create, :destroy ] do

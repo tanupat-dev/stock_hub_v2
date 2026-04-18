@@ -1,3 +1,4 @@
+# app/services/inventory/reconcile_shop.rb
 # frozen_string_literal: true
 
 module Inventory
