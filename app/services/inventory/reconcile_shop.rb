@@ -94,14 +94,26 @@ module Inventory
             next
           end
 
-          central = sku.online_available
+          central = sku.online_available.to_i
           marketplace = item.available_stock.to_i
           next if central == marketplace
 
           @mismatched += 1
 
           state = state_cache[sku.id]
-          if state && state.last_pushed_available == central
+
+          # IMPORTANT:
+          # last_pushed_available == central เพียงอย่างเดียวไม่พอที่จะ skip
+          # เพราะ marketplace อาจ drift หลังจาก push สำเร็จแล้วได้
+          #
+          # skip ได้เฉพาะกรณีที่:
+          # - เคย push ค่า central นี้แล้ว
+          # - และ marketplace ตอนนี้ตรงกับ central อยู่แล้ว
+          #
+          # แต่ถ้า marketplace ยังไม่ตรง ต้อง push ซ้ำ
+          if state &&
+             state.last_pushed_available.to_i == central &&
+             marketplace == central
             @skipped_no_change_state += 1
             next
           end
