@@ -98,48 +98,82 @@ module Orders
             .map { |s| s.to_s.downcase.strip }
             .reject(&:blank?)
 
-        raw_status = (item_statuses + order_statuses).first.to_s
-        has_tracking = Orders::StatusTracking.any_in_order_payload?(order.merge("line_items" => items))
+        statuses = (item_statuses + order_statuses).uniq
+        raw_status = statuses.first.to_s
 
-        case raw_status
-        when "confirmed", "pending", "unpaid", "topack", "to_pack"
-          has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
+        has_tracking = Orders::StatusTracking.any_in_order_payload?(
+          order.merge("line_items" => items)
+        )
 
-        when "ready_to_ship", "toship", "to_ship", "readytoship", "packed"
-          "READY_TO_SHIP"
+        # terminal / cancel-ish ก่อน
+        return "CANCELLED" if statuses.any? { |s| cancelled_status?(s) }
+        return "CANCELLED" if statuses.any? { |s| reverse_or_failed_status?(s) }
 
-        when "shipped", "shipping", "in_transit", "out_for_delivery"
-          "IN_TRANSIT"
+        # delivered flow
+        return "DELIVERED" if statuses.any? { |s| delivered_status?(s) }
 
-        when "delivered", "completed", "shipped_back_success", "success"
-          "DELIVERED"
+        # in transit
+        return "IN_TRANSIT" if statuses.any? { |s| in_transit_status?(s) }
 
-        when "canceled", "cancelled", "cancel", "failed", "voided"
-          "CANCELLED"
-
-        when "returned", "return_failed", "lost"
-          "CANCELLED"
-
-        else
-          normalized = raw_status.upcase
-
-          case normalized
-          when "UNPAID"
-            "AWAITING_FULFILLMENT"
-          when "READY_TO_SHIP", "TOSHIP", "TO_SHIP", "READYTOSHIP", "PACKED"
-            "READY_TO_SHIP"
-          when "SHIPPED", "SHIPPING", "IN_TRANSIT", "OUT_FOR_DELIVERY"
-            "IN_TRANSIT"
-          when "DELIVERED", "COMPLETED", "SHIPPED_BACK_SUCCESS", "SUCCESS"
-            "DELIVERED"
-          when "CANCELLED", "CANCELED", "CANCEL", "FAILED", "VOIDED"
-            "CANCELLED"
-          when "RETURNED", "RETURN_FAILED", "LOST"
-            "CANCELLED"
-          else
-            has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
-          end
+        # pre-ship flow แบบเดียวกับ tiktok:
+        # pending, unpaid, packed, ready_to_ship_pending, ready_to_ship
+        # => ดูว่ามี tracking หรือยัง
+        if statuses.any? { |s| pre_ship_status?(s) }
+          return has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
         end
+
+        # fallback สุดท้าย
+        has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
+      end
+
+      def self.cancelled_status?(status)
+        %w[
+          canceled
+          cancelled
+          cancel
+        ].include?(status)
+      end
+
+      def self.reverse_or_failed_status?(status)
+        status.start_with?("shipped_back") ||
+          %w[
+            returned
+            return_failed
+            failed_delivery
+            lost_by_3pl
+            damaged_by_3pl
+          ].include?(status)
+      end
+
+      def self.delivered_status?(status)
+        %w[
+          delivered
+          confirmed
+          completed
+          success
+        ].include?(status)
+      end
+
+      def self.in_transit_status?(status)
+        %w[
+          shipped
+        ].include?(status)
+      end
+
+      def self.pre_ship_status?(status)
+        %w[
+          pending
+          unpaid
+          packed
+          ready_to_ship_pending
+          ready_to_ship
+          topack
+          to_pack
+          toship
+          to_ship
+          readytoship
+          confirmed_pending
+        ].include?(status)
       end
 
       def self.build_buyer_name(order)
@@ -163,6 +197,7 @@ module Orders
 
       def self.parse_time_to_i(value)
         return 0 if value.blank?
+
         Time.parse(value.to_s).to_i
       rescue
         0
