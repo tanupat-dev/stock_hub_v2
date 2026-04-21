@@ -17,10 +17,7 @@ module Orders
 
           {
             "id" => o["order_id"].to_s,
-
-            # ✅ PATCH: ใช้ normalize แทน derive
             "status" => normalize_status(order: o, items: order_items),
-
             "update_time" => parse_time_to_i(o["updated_at"]),
             "created_at" => o["created_at"].to_s.presence,
             "updated_at" => o["updated_at"].to_s.presence,
@@ -82,65 +79,68 @@ module Orders
                 "seller_sku" => li["sku"].to_s,
                 "quantity" => extract_quantity(li),
                 "display_status" => li["status"].to_s,
-                "tracking_number" =>
-                  li["tracking_code"].to_s.presence ||
-                  li["tracking_number"].to_s.presence,
-                "shipment_provider" =>
-                  li["shipment_provider"].to_s.presence ||
-                  li["shipping_provider"].to_s.presence
+                "tracking_number" => li["tracking_code"].to_s.presence || li["tracking_number"].to_s.presence,
+                "shipment_provider" => li["shipment_provider"].to_s.presence || li["shipping_provider"].to_s.presence
               }.compact
             end
           }.compact
         end
       end
 
-      # =========================================================
-      # ✅ NEW: TikTok-style normalize (แทน derive_status)
-      # =========================================================
       def self.normalize_status(order:, items:)
-        item_statuses = Array(items).map { |i| i["status"].to_s }.reject(&:blank?)
-        order_statuses = Array(order["statuses"]).map(&:to_s).reject(&:blank?)
+        item_statuses =
+          Array(items)
+            .map { |i| i["status"].to_s.downcase.strip }
+            .reject(&:blank?)
+
+        order_statuses =
+          Array(order["statuses"])
+            .map { |s| s.to_s.downcase.strip }
+            .reject(&:blank?)
 
         raw_status = (item_statuses + order_statuses).first.to_s
+        has_tracking = Orders::StatusTracking.any_in_order_payload?(order.merge("line_items" => items))
 
-        has_tracking = Orders::StatusTracking.any_in_order_payload?(
-          order.merge("line_items" => items)
-        )
-
-        normalized = raw_status.downcase.strip
-
-        case normalized
-        # ===== awaiting =====
+        case raw_status
         when "confirmed", "pending", "unpaid", "topack", "to_pack"
           has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
 
-        # ===== ready =====
-        when "ready_to_ship", "toship"
+        when "ready_to_ship", "toship", "to_ship", "readytoship", "packed"
           "READY_TO_SHIP"
 
-        # ===== transit =====
-        when "shipped", "shipping"
+        when "shipped", "shipping", "in_transit", "out_for_delivery"
           "IN_TRANSIT"
 
-        # ===== delivered =====
-        when "delivered", "completed"
+        when "delivered", "completed", "shipped_back_success", "success"
           "DELIVERED"
 
-        # ===== cancel =====
-        when "canceled", "cancelled", "failed"
+        when "canceled", "cancelled", "cancel", "failed", "voided"
           "CANCELLED"
 
-        # ===== return =====
-        when "returned"
+        when "returned", "return_failed", "lost"
           "CANCELLED"
 
         else
-          # fallback = ใช้ raw เหมือน TikTok
-          raw_status.to_s.upcase
+          normalized = raw_status.upcase
+
+          case normalized
+          when "UNPAID"
+            "AWAITING_FULFILLMENT"
+          when "READY_TO_SHIP", "TOSHIP", "TO_SHIP", "READYTOSHIP", "PACKED"
+            "READY_TO_SHIP"
+          when "SHIPPED", "SHIPPING", "IN_TRANSIT", "OUT_FOR_DELIVERY"
+            "IN_TRANSIT"
+          when "DELIVERED", "COMPLETED", "SHIPPED_BACK_SUCCESS", "SUCCESS"
+            "DELIVERED"
+          when "CANCELLED", "CANCELED", "CANCEL", "FAILED", "VOIDED"
+            "CANCELLED"
+          when "RETURNED", "RETURN_FAILED", "LOST"
+            "CANCELLED"
+          else
+            has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
+          end
         end
       end
-
-      # =========================================================
 
       def self.build_buyer_name(order)
         first = order["customer_first_name"].to_s.strip
