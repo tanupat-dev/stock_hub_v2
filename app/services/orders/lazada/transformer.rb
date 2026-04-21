@@ -17,7 +17,10 @@ module Orders
 
           {
             "id" => o["order_id"].to_s,
-            "status" => derive_status(order: o, items: order_items),
+
+            # ✅ PATCH: ใช้ normalize แทน derive
+            "status" => normalize_status(order: o, items: order_items),
+
             "update_time" => parse_time_to_i(o["updated_at"]),
             "created_at" => o["created_at"].to_s.presence,
             "updated_at" => o["updated_at"].to_s.presence,
@@ -79,13 +82,65 @@ module Orders
                 "seller_sku" => li["sku"].to_s,
                 "quantity" => extract_quantity(li),
                 "display_status" => li["status"].to_s,
-                "tracking_number" => li["tracking_code"].to_s.presence || li["tracking_number"].to_s.presence,
-                "shipment_provider" => li["shipment_provider"].to_s.presence || li["shipping_provider"].to_s.presence
+                "tracking_number" =>
+                  li["tracking_code"].to_s.presence ||
+                  li["tracking_number"].to_s.presence,
+                "shipment_provider" =>
+                  li["shipment_provider"].to_s.presence ||
+                  li["shipping_provider"].to_s.presence
               }.compact
             end
           }.compact
         end
       end
+
+      # =========================================================
+      # ✅ NEW: TikTok-style normalize (แทน derive_status)
+      # =========================================================
+      def self.normalize_status(order:, items:)
+        item_statuses = Array(items).map { |i| i["status"].to_s }.reject(&:blank?)
+        order_statuses = Array(order["statuses"]).map(&:to_s).reject(&:blank?)
+
+        raw_status = (item_statuses + order_statuses).first.to_s
+
+        has_tracking = Orders::StatusTracking.any_in_order_payload?(
+          order.merge("line_items" => items)
+        )
+
+        normalized = raw_status.downcase.strip
+
+        case normalized
+        # ===== awaiting =====
+        when "confirmed", "pending", "unpaid", "topack", "to_pack"
+          has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
+
+        # ===== ready =====
+        when "ready_to_ship", "toship"
+          "READY_TO_SHIP"
+
+        # ===== transit =====
+        when "shipped", "shipping"
+          "IN_TRANSIT"
+
+        # ===== delivered =====
+        when "delivered", "completed"
+          "DELIVERED"
+
+        # ===== cancel =====
+        when "canceled", "cancelled", "failed"
+          "CANCELLED"
+
+        # ===== return =====
+        when "returned"
+          "CANCELLED"
+
+        else
+          # fallback = ใช้ raw เหมือน TikTok
+          raw_status.to_s.upcase
+        end
+      end
+
+      # =========================================================
 
       def self.build_buyer_name(order)
         first = order["customer_first_name"].to_s.strip
@@ -104,70 +159,6 @@ module Orders
 
       def self.compact_hash(hash)
         hash.transform_values { |v| v.to_s.presence }.compact
-      end
-
-      def self.derive_status(order:, items:)
-        item_statuses = Array(items).map { |i| i["status"].to_s.downcase.strip }.reject(&:empty?).uniq
-        order_statuses = Array(order["statuses"]).map { |s| s.to_s.downcase.strip }.reject(&:empty?).uniq
-        statuses = (item_statuses + order_statuses).uniq
-
-        has_tracking =
-          Array(items).any? do |item|
-            Orders::StatusTracking.present?(item["tracking_code"]) ||
-              Orders::StatusTracking.present?(item["tracking_number"])
-          end
-
-        return "CANCELLED" if statuses.any? { |s| cancelled_status?(s) }
-        return "DELIVERED" if statuses.any? { |s| delivered_status?(s) }
-        return "IN_TRANSIT" if statuses.any? { |s| in_transit_status?(s) }
-
-        # ถ้ามี tracking แล้ว อย่างน้อยต้องเป็น READY_TO_SHIP
-        return "READY_TO_SHIP" if has_tracking
-
-        return "READY_TO_SHIP" if statuses.any? { |s| ready_to_ship_status?(s) }
-        return "AWAITING_FULFILLMENT" if statuses.any? { |s| awaiting_fulfillment_status?(s) }
-
-        "AWAITING_FULFILLMENT"
-      end
-
-      def self.cancelled_status?(status)
-        %w[
-          canceled cancelled cancel
-          failed
-          returned
-          return_failed
-        ].include?(status)
-      end
-
-      def self.delivered_status?(status)
-        %w[
-          delivered
-          completed
-          shipped_back_success
-        ].include?(status)
-      end
-
-      def self.in_transit_status?(status)
-        %w[
-          shipped
-        ].include?(status)
-      end
-
-      def self.ready_to_ship_status?(status)
-        %w[
-          ready_to_ship
-          packed
-        ].include?(status)
-      end
-
-      def self.awaiting_fulfillment_status?(status)
-        %w[
-          confirmed
-          unpaid
-          topack
-          to_pack
-          pending
-        ].include?(status)
       end
 
       def self.parse_time_to_i(value)
