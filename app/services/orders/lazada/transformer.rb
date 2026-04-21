@@ -8,34 +8,34 @@ module Orders
       def self.call(orders:, items:)
         items_by_order = Array(items).index_by { |i| i["order_id"].to_s }
 
-        Array(orders).map do |o|
-          bucket = items_by_order[o["order_id"].to_s] || {}
+        Array(orders).map do |order|
+          bucket = items_by_order[order["order_id"].to_s] || {}
           order_items = Array(bucket["order_items"])
 
-          shipping = o["address_shipping"] || {}
-          billing = o["address_billing"] || {}
+          shipping = order["address_shipping"] || {}
+          billing = order["address_billing"] || {}
 
           {
-            "id" => o["order_id"].to_s,
-            "status" => normalize_status(order: o, items: order_items),
-            "update_time" => parse_time_to_i(o["updated_at"]),
-            "created_at" => o["created_at"].to_s.presence,
-            "updated_at" => o["updated_at"].to_s.presence,
+            "id" => order["order_id"].to_s,
+            "status" => normalize_status(order:, items: order_items),
+            "update_time" => parse_time_to_i(order["updated_at"]),
+            "created_at" => order["created_at"].to_s.presence,
+            "updated_at" => order["updated_at"].to_s.presence,
 
-            "buyer_name" => build_buyer_name(o),
-            "province" => extract_province(o),
-            "buyer_note" => o["buyer_note"].to_s.presence || o["remarks"].to_s.presence,
-            "buyer_first_name" => o["customer_first_name"].to_s.presence,
-            "buyer_last_name" => o["customer_last_name"].to_s.presence,
+            "buyer_name" => build_buyer_name(order),
+            "province" => extract_province(order),
+            "buyer_note" => order["buyer_note"].to_s.presence || order["remarks"].to_s.presence,
+            "buyer_first_name" => order["customer_first_name"].to_s.presence,
+            "buyer_last_name" => order["customer_last_name"].to_s.presence,
 
-            "amount" => o["price"].to_s.presence,
-            "payment_method" => o["payment_method"].to_s.presence,
-            "delivery_info" => o["delivery_info"].to_s.presence,
-            "warehouse_code" => o["warehouse_code"].to_s.presence,
-            "shipping_fee" => o["shipping_fee"].to_s.presence,
-            "shipping_fee_original" => o["shipping_fee_original"].to_s.presence,
-            "shipping_fee_discount_platform" => o["shipping_fee_discount_platform"].to_s.presence,
-            "shipping_fee_discount_seller" => o["shipping_fee_discount_seller"].to_s.presence,
+            "amount" => order["price"].to_s.presence,
+            "payment_method" => order["payment_method"].to_s.presence,
+            "delivery_info" => order["delivery_info"].to_s.presence,
+            "warehouse_code" => order["warehouse_code"].to_s.presence,
+            "shipping_fee" => order["shipping_fee"].to_s.presence,
+            "shipping_fee_original" => order["shipping_fee_original"].to_s.presence,
+            "shipping_fee_discount_platform" => order["shipping_fee_discount_platform"].to_s.presence,
+            "shipping_fee_discount_seller" => order["shipping_fee_discount_seller"].to_s.presence,
 
             "address_shipping" => compact_hash(
               "first_name" => shipping["first_name"],
@@ -68,19 +68,19 @@ module Orders
               "country" => billing["country"]
             ),
             "recipient_info" => compact_hash(
-              "identify_no" => o.dig("recipient_info", "identify_no"),
-              "detail_address" => o.dig("recipient_info", "detail_address"),
-              "passport_no" => o.dig("recipient_info", "passport_no")
+              "identify_no" => order.dig("recipient_info", "identify_no"),
+              "detail_address" => order.dig("recipient_info", "detail_address"),
+              "passport_no" => order.dig("recipient_info", "passport_no")
             ),
 
-            "line_items" => order_items.map do |li|
+            "line_items" => order_items.map do |item|
               {
-                "id" => li["order_item_id"].to_s,
-                "seller_sku" => li["sku"].to_s,
-                "quantity" => extract_quantity(li),
-                "display_status" => li["status"].to_s,
-                "tracking_number" => li["tracking_code"].to_s.presence || li["tracking_number"].to_s.presence,
-                "shipment_provider" => li["shipment_provider"].to_s.presence || li["shipping_provider"].to_s.presence
+                "id" => item["order_item_id"].to_s,
+                "seller_sku" => item["sku"].to_s,
+                "quantity" => extract_quantity(item),
+                "display_status" => item["status"].to_s,
+                "tracking_number" => extract_tracking_number(item),
+                "shipment_provider" => item["shipment_provider"].to_s.presence || item["shipping_provider"].to_s.presence
               }.compact
             end
           }.compact
@@ -88,42 +88,46 @@ module Orders
       end
 
       def self.normalize_status(order:, items:)
-        item_statuses =
-          Array(items)
-            .map { |i| i["status"].to_s.downcase.strip }
-            .reject(&:blank?)
-
-        order_statuses =
-          Array(order["statuses"])
-            .map { |s| s.to_s.downcase.strip }
-            .reject(&:blank?)
-
-        statuses = (item_statuses + order_statuses).uniq
-        raw_status = statuses.first.to_s
-
+        statuses = normalized_statuses(order:, items:)
         has_tracking = Orders::StatusTracking.any_in_order_payload?(
           order.merge("line_items" => items)
         )
 
-        # terminal / cancel-ish ก่อน
-        return "CANCELLED" if statuses.any? { |s| cancelled_status?(s) }
-        return "CANCELLED" if statuses.any? { |s| reverse_or_failed_status?(s) }
+        # 1) cancel / reverse / failed กลุ่มที่ต้องไม่ไป reserve/commit ต่อ
+        return "CANCELLED" if statuses.any? { |status| cancelled_status?(status) }
+        return "CANCELLED" if statuses.any? { |status| reverse_or_failed_status?(status) }
 
-        # delivered flow
-        return "DELIVERED" if statuses.any? { |s| delivered_status?(s) }
+        # 2) delivered flow
+        return "DELIVERED" if statuses.any? { |status| delivered_status?(status) }
 
-        # in transit
-        return "IN_TRANSIT" if statuses.any? { |s| in_transit_status?(s) }
+        # 3) in transit
+        return "IN_TRANSIT" if statuses.any? { |status| in_transit_status?(status) }
 
-        # pre-ship flow แบบเดียวกับ tiktok:
-        # pending, unpaid, packed, ready_to_ship_pending, ready_to_ship
-        # => ดูว่ามี tracking หรือยัง
-        if statuses.any? { |s| pre_ship_status?(s) }
+        # 4) pre-ship flow แบบเดียวกับ tiktok:
+        #    ยังไม่พร้อมจัดส่ง = ไม่มี tracking
+        #    พร้อมจัดส่งแล้ว = มี tracking
+        if statuses.any? { |status| pre_ship_status?(status) }
           return has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
         end
 
-        # fallback สุดท้าย
+        # 5) fallback:
+        #    ถ้ามี tracking ให้ถือว่า READY_TO_SHIP
+        #    ถ้าไม่มี tracking ให้ถือว่า AWAITING_FULFILLMENT
         has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
+      end
+
+      def self.normalized_statuses(order:, items:)
+        item_statuses =
+          Array(items)
+            .map { |item| item["status"].to_s.downcase.strip }
+            .reject(&:blank?)
+
+        order_statuses =
+          Array(order["statuses"])
+            .map { |status| status.to_s.downcase.strip }
+            .reject(&:blank?)
+
+        (item_statuses + order_statuses).uniq
       end
 
       def self.cancelled_status?(status)
@@ -149,8 +153,6 @@ module Orders
         %w[
           delivered
           confirmed
-          completed
-          success
         ].include?(status)
       end
 
@@ -191,22 +193,27 @@ module Orders
           billing["city"].to_s.presence
       end
 
+      def self.extract_tracking_number(item)
+        item["tracking_code"].to_s.presence ||
+          item["tracking_number"].to_s.presence
+      end
+
       def self.compact_hash(hash)
-        hash.transform_values { |v| v.to_s.presence }.compact
+        hash.transform_values { |value| value.to_s.presence }.compact
       end
 
       def self.parse_time_to_i(value)
         return 0 if value.blank?
 
         Time.parse(value.to_s).to_i
-      rescue
+      rescue StandardError
         0
       end
 
       def self.extract_quantity(item)
         qty = item["quantity"] || item["item_quantity"] || 1
-        q = qty.to_i
-        q > 0 ? q : 1
+        qty_i = qty.to_i
+        qty_i > 0 ? qty_i : 1
       end
     end
   end
