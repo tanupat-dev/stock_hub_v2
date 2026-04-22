@@ -90,13 +90,10 @@ class DebouncedSyncStockJob < ApplicationJob
     )
 
     req.update!(
-      status: "pending",
+      status: "completed",
       last_processed_at: Time.current,
-      last_enqueued_at: nil,
-      last_error: nil,
-      first_requested_at: Time.current,
-      last_requested_at: Time.current,
-      scheduled_for: Time.current
+      last_enqueued_at: Time.current,
+      last_error: nil
     )
 
     Rails.logger.info(

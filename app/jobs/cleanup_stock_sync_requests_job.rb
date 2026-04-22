@@ -24,9 +24,9 @@ class CleanupStockSyncRequestsJob < ApplicationJob
           updated_at: now
         )
 
-    delete_pending_count =
+    delete_completed_count =
       StockSyncRequest
-        .where(status: "pending")
+        .where(status: "completed")
         .where("last_processed_at IS NOT NULL")
         .where("last_processed_at < ?", now - delete_processed_older_than)
         .delete_all
@@ -41,7 +41,7 @@ class CleanupStockSyncRequestsJob < ApplicationJob
       {
         event: "cleanup_stock_sync_requests_job.done",
         reset_processing_count: reset_processing_count,
-        delete_pending_count: delete_pending_count,
+        delete_completed_count: delete_completed_count,
         delete_failed_count: delete_failed_count
       }.to_json
     )
@@ -49,7 +49,7 @@ class CleanupStockSyncRequestsJob < ApplicationJob
     {
       ok: true,
       reset_processing_count: reset_processing_count,
-      delete_pending_count: delete_pending_count,
+      delete_completed_count: delete_completed_count,
       delete_failed_count: delete_failed_count
     }
   rescue => e

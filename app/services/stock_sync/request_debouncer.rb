@@ -3,6 +3,7 @@
 module StockSync
   class RequestDebouncer
     DEFAULT_DEBOUNCE_SECONDS = 5
+    STALE_ENQUEUE_SECONDS = 30
 
     def self.call!(sku:, reason:, debounce_seconds: DEFAULT_DEBOUNCE_SECONDS)
       new(sku:, reason:, debounce_seconds:).call!
@@ -11,7 +12,8 @@ module StockSync
     def initialize(sku:, reason:, debounce_seconds:)
       @sku = sku
       @reason = reason.to_s.presence || "inventory_changed"
-      @debounce_seconds = debounce_seconds.to_i > 0 ? debounce_seconds.to_i : DEFAULT_DEBOUNCE_SECONDS
+      @debounce_seconds =
+        debounce_seconds.to_i > 0 ? debounce_seconds.to_i : DEFAULT_DEBOUNCE_SECONDS
     end
 
     def call!
@@ -40,15 +42,21 @@ module StockSync
           )
           should_enqueue = true
         else
-          should_enqueue = req.last_enqueued_at.blank?
+          should_enqueue =
+            req.last_enqueued_at.blank? ||
+            req.last_enqueued_at < now - STALE_ENQUEUE_SECONDS.seconds
 
           req.update!(
             status: "pending",
             last_reason: @reason,
             last_requested_at: now,
-            scheduled_for: [ req.scheduled_for, scheduled_for ].max,
+            scheduled_for: [ req.scheduled_for, scheduled_for ].compact.max,
             last_error: nil
           )
+        end
+
+        if should_enqueue
+          req.update!(last_enqueued_at: now)
         end
       end
 
@@ -56,8 +64,6 @@ module StockSync
         DebouncedSyncStockJob
           .set(wait_until: req.scheduled_for)
           .perform_later(@sku.id)
-
-        req.update_column(:last_enqueued_at, Time.current)
       end
 
       Rails.logger.info(
@@ -69,6 +75,7 @@ module StockSync
           debounce_seconds: @debounce_seconds,
           scheduled_for: req.scheduled_for,
           status: req.status,
+          last_enqueued_at: req.last_enqueued_at,
           enqueued_job: should_enqueue
         }.to_json
       )
