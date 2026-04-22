@@ -22,7 +22,10 @@ production:
     class: InventoryReconcileAllShopsJob
     queue: reconcile
     args:
-      - { fresh_within: 21600, push_limit: 20 }
+      - {
+          fresh_within: 21600,
+          push_limit: 100,
+        }
     schedule: every 30 minutes
 <% end %>
 
@@ -91,7 +94,7 @@ development:
     class: InventoryReconcileAllShopsJob
     queue: reconcile
     args:
-      - { fresh_within: 604800, push_limit: 30 }
+      - { fresh_within: 604800, push_limit: 100 }
     schedule: every 30 minutes
 
   poll_tiktok_all_shops_returns:

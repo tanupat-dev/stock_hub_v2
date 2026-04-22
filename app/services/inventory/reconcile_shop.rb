@@ -20,12 +20,15 @@ module Inventory
       @unmapped = 0
       @pushed = 0
 
-      @skipped_stale = 0
+      @stale_items = 0
+      @stale_mismatched = 0
       @skipped_missing_variant = 0
       @skipped_missing_balance = 0
       @skipped_no_change_state = 0
       @skipped_rollout_blocked = 0
       @skipped_shop_disabled = 0
+      @skipped_nil_available_stock = 0
+      @skipped_push_limit = 0
     end
 
     def call!
@@ -55,12 +58,13 @@ module Inventory
         .find_each do |item|
           @scanned_activate += 1
 
-          if item.synced_at.blank? || item.synced_at < cutoff
-            @skipped_stale += 1
+          item_stale = item.synced_at.blank? || item.synced_at < cutoff
+          @stale_items += 1 if item_stale
+
+          if item.available_stock.nil?
+            @skipped_nil_available_stock += 1
             next
           end
-
-          next if item.available_stock.nil?
 
           variant_id = item.external_variant_id.to_s.strip
           if variant_id.blank?
@@ -96,21 +100,14 @@ module Inventory
 
           central = sku.online_available.to_i
           marketplace = item.available_stock.to_i
+
           next if central == marketplace
 
           @mismatched += 1
+          @stale_mismatched += 1 if item_stale
 
           state = state_cache[sku.id]
 
-          # IMPORTANT:
-          # last_pushed_available == central เพียงอย่างเดียวไม่พอที่จะ skip
-          # เพราะ marketplace อาจ drift หลังจาก push สำเร็จแล้วได้
-          #
-          # skip ได้เฉพาะกรณีที่:
-          # - เคย push ค่า central นี้แล้ว
-          # - และ marketplace ตอนนี้ตรงกับ central อยู่แล้ว
-          #
-          # แต่ถ้า marketplace ยังไม่ตรง ต้อง push ซ้ำ
           if state &&
              state.last_pushed_available.to_i == central &&
              marketplace == central
@@ -118,7 +115,10 @@ module Inventory
             next
           end
 
-          next if @pushed >= @push_limit
+          if @pushed >= @push_limit
+            @skipped_push_limit += 1
+            next
+          end
 
           PushInventoryJob.perform_later(
             @shop.id,
@@ -148,12 +148,15 @@ module Inventory
         mismatched: @mismatched,
         unmapped: @unmapped,
         pushed: @pushed,
-        skipped_stale: @skipped_stale,
+        stale_items: @stale_items,
+        stale_mismatched: @stale_mismatched,
         skipped_missing_variant: @skipped_missing_variant,
         skipped_missing_balance: @skipped_missing_balance,
         skipped_no_change_state: @skipped_no_change_state,
         skipped_rollout_blocked: @skipped_rollout_blocked,
-        skipped_shop_disabled: @skipped_shop_disabled
+        skipped_shop_disabled: @skipped_shop_disabled,
+        skipped_nil_available_stock: @skipped_nil_available_stock,
+        skipped_push_limit: @skipped_push_limit
       }
     end
 
