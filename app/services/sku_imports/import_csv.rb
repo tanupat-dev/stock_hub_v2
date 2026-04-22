@@ -272,7 +272,16 @@ module SkuImports
             }
           )
 
-          updated += 1 if result == :adjusted
+          if result.present?
+            updated += 1
+
+            # 🔥 FIX: trigger stock sync
+            StockSync::RequestDebouncer.call!(
+              sku: sku,
+              reason: "sku_import"
+            )
+          end
+
         rescue => e
           failed += 1
           failed_samples << {
