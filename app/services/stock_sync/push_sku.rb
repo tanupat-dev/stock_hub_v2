@@ -105,7 +105,14 @@ module StockSync
       state = ShopSkuSyncState.find_by(shop_id: shop.id, sku_id: sku.id)
 
       if !@force && state
-        if state.last_pushed_at.present? && state.last_pushed_at > COOLDOWN_WINDOW.ago
+        if state.last_pushed_available == available
+          skip_reason =
+            if state.last_pushed_at.present? && state.last_pushed_at > COOLDOWN_WINDOW.ago
+              "cooldown_same_value"
+            else
+              "no_change"
+            end
+
           Rails.logger.info(
             {
               event: "stock_sync.push_marketplace.skip",
@@ -116,27 +123,10 @@ module StockSync
               sku: sku.code,
               available: available,
               reason: @reason,
-              skip_reason: "cooldown",
+              skip_reason: skip_reason,
+              last_pushed_available: state.last_pushed_available,
               last_pushed_at: state.last_pushed_at,
               cooldown_seconds: COOLDOWN_WINDOW.to_i
-            }.to_json
-          )
-          return :skipped
-        end
-
-        if state.last_pushed_available == available
-          Rails.logger.info(
-            {
-              event: "stock_sync.push_marketplace.skip",
-              channel: shop.channel,
-              shop_code: shop.shop_code,
-              shop_id: shop.id,
-              sku_id: sku.id,
-              sku: sku.code,
-              available: available,
-              reason: @reason,
-              skip_reason: "no_change",
-              last_pushed_available: state.last_pushed_available
             }.to_json
           )
           return :skipped
