@@ -40,7 +40,6 @@ module Inventory
 
         target_on_hand = 0 if target_on_hand < 0
 
-        # ✅ FIX: no-op guard (สำคัญ)
         if target_on_hand == balance.on_hand
           Rails.logger.info(
             {
@@ -81,7 +80,7 @@ module Inventory
           )
         )
 
-        after = snapshot(balance.reload)
+        after = snapshot(balance)
         result = :adjusted
       end
 
