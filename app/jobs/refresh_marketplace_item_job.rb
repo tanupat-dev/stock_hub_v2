@@ -3,21 +3,32 @@
 class RefreshMarketplaceItemJob < ApplicationJob
   queue_as :default
 
-  def perform(shop_id, external_variant_id)
-    shop = Shop.find(shop_id)
+  retry_on Net::OpenTimeout,
+           Net::ReadTimeout,
+           Timeout::Error,
+           wait: ->(e) { [ e * 3, 30 ].min.seconds },
+           attempts: 5
 
-    case shop.channel
-    when "tiktok"
-      refresh_tiktok_variant!(shop, external_variant_id)
-    when "lazada"
-      refresh_lazada_variant!(shop, external_variant_id)
+  retry_on StandardError,
+           wait: ->(e) { [ e * 5, 60 ].min.seconds },
+           attempts: 3
+
+  def perform(shop_id, external_variant_id)
+    Timeout.timeout(20) do
+      shop = Shop.find(shop_id)
+
+      case shop.channel
+      when "tiktok"
+        refresh_tiktok_variant!(shop, external_variant_id)
+      when "lazada"
+        refresh_lazada_variant!(shop, external_variant_id)
+      end
     end
 
     Rails.logger.info(
       {
         event: "refresh_marketplace_item_job.done",
-        shop_id: shop.id,
-        channel: shop.channel,
+        shop_id: shop_id,
         external_variant_id: external_variant_id
       }.to_json
     )
@@ -30,6 +41,8 @@ class RefreshMarketplaceItemJob < ApplicationJob
         err: e.message
       }.to_json
     )
+
+    raise # 🔥 สำคัญ → ให้ retry ทำงาน
   end
 
   private

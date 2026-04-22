@@ -77,6 +77,11 @@ production:
         }
     schedule: every 1 hour
 
+  cleanup_stale_jobs:
+    class: CleanupStaleJobsJob
+    queue: default
+    schedule: every 30 minutes
+
 development:
   poll_tiktok_all_shops:
     class: PollTiktokAllShopsJob
