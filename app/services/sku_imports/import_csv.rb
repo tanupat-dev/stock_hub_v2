@@ -259,6 +259,9 @@ module SkuImports
             next
           end
 
+          current_on_hand = sku.inventory_balance&.on_hand.to_i
+          next if on_hand == current_on_hand
+
           idempotency_key = "sku_import:set_exact:#{sku.code}:#{on_hand}"
 
           result = Inventory::Adjust.call!(
@@ -272,16 +275,12 @@ module SkuImports
             }
           )
 
-          if result.present?
-            updated += 1
+          updated += 1 if result.present?
 
-            # 🔥 FIX: trigger stock sync
-            StockSync::RequestDebouncer.call!(
-              sku: sku,
-              reason: "sku_import"
-            )
-          end
-
+          StockSync::RequestDebouncer.call!(
+            sku: sku,
+            reason: "sku_import"
+          )
         rescue => e
           failed += 1
           failed_samples << {
