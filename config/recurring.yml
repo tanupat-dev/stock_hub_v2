@@ -17,18 +17,6 @@ production:
     schedule: every 2 minutes
 <% end %>
 
-<% if ENV["ENABLE_RECONCILE"] == "true" %>
-  inventory_reconcile_all_shops:
-    class: InventoryReconcileAllShopsJob
-    queue: reconcile
-    args:
-      - {
-          fresh_within: 21600,
-          push_limit: 100,
-        }
-    schedule: every 30 minutes
-<% end %>
-
 <% if ENV["ENABLE_POLL_RETURNS"] == "true" %>
   poll_tiktok_all_shops_returns:
     class: PollTiktokAllShopsReturnsJob
@@ -56,14 +44,26 @@ production:
           max_pages: 200,
           page_size: 50,
         }
-    schedule: every 6 hours
+    schedule: every 1 hour
 
   poll_lazada_all_shops_catalog:
     class: PollLazadaAllShopsCatalogJob
     queue: default
     args:
       - { filter: "all", limit: 20, max_pages: 200, full: false }
-    schedule: every 6 hours
+    schedule: every 1 hour
+<% end %>
+
+<% if ENV["ENABLE_RECONCILE"] == "true" %>
+  inventory_reconcile_all_shops:
+    class: InventoryReconcileAllShopsJob
+    queue: reconcile
+    args:
+      - {
+          fresh_within: 21600,
+          push_limit: 100,
+        }
+    schedule: every 1 hour
 <% end %>
 
   cleanup_stock_sync_requests:
@@ -90,13 +90,6 @@ development:
     args: []
     schedule: every 10 minutes
 
-  inventory_reconcile_all_shops:
-    class: InventoryReconcileAllShopsJob
-    queue: reconcile
-    args:
-      - { fresh_within: 604800, push_limit: 100 }
-    schedule: every 30 minutes
-
   poll_tiktok_all_shops_returns:
     class: PollTiktokAllShopsReturnsJob
     queue: poll_orders
@@ -121,13 +114,20 @@ development:
           max_pages: 50,
           page_size: 50,
         }
-    schedule: every 1 hour
+    schedule: every 30 minutes
 
   poll_lazada_all_shops_catalog:
     class: PollLazadaAllShopsCatalogJob
     queue: default
     args:
       - { filter: "all", limit: 20, max_pages: 50, full: false }
+    schedule: every 30 minutes
+
+  inventory_reconcile_all_shops:
+    class: InventoryReconcileAllShopsJob
+    queue: reconcile
+    args:
+      - { fresh_within: 604800, push_limit: 50 }
     schedule: every 1 hour
 
   cleanup_stock_sync_requests:

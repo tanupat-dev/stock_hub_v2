@@ -87,6 +87,7 @@ class PushInventoryJob < ApplicationJob
       )
 
       mark_success!(shop, variant_id, desired_qty, reason: reason)
+      enqueue_targeted_refresh(shop, variant_id)
 
       Rails.logger.info(
         {
@@ -116,6 +117,7 @@ class PushInventoryJob < ApplicationJob
       )
 
       mark_success!(shop, variant_id, desired_qty, reason: reason)
+      enqueue_targeted_refresh(shop, variant_id)
 
       Rails.logger.info(
         {
@@ -150,6 +152,22 @@ class PushInventoryJob < ApplicationJob
   end
 
   private
+
+  def enqueue_targeted_refresh(shop, variant_id)
+    RefreshMarketplaceItemJob.set(wait: 10.seconds).perform_later(shop.id, variant_id)
+  rescue => e
+    Rails.logger.warn(
+      {
+        event: "push_inventory_job.refresh_enqueue_fail",
+        shop_id: shop.id,
+        shop_code: shop.shop_code,
+        channel: shop.channel,
+        external_variant_id: variant_id,
+        err_class: e.class.name,
+        err_message: e.message
+      }.to_json
+    )
+  end
 
   def log_skip(shop, item, desired_qty, reason, skip_reason, extra = {})
     Rails.logger.info(

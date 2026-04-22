@@ -2,6 +2,8 @@
 
 module StockSync
   class PushSku
+    COOLDOWN_WINDOW = 30.minutes
+
     def self.call!(sku:, reason: nil, force: false)
       new(sku:, reason:, force:).call!
     end
@@ -102,22 +104,43 @@ module StockSync
 
       state = ShopSkuSyncState.find_by(shop_id: shop.id, sku_id: sku.id)
 
-      if !@force && state && state.last_pushed_available == available
-        Rails.logger.info(
-          {
-            event: "stock_sync.push_marketplace.skip",
-            channel: shop.channel,
-            shop_code: shop.shop_code,
-            shop_id: shop.id,
-            sku_id: sku.id,
-            sku: sku.code,
-            available: available,
-            reason: @reason,
-            skip_reason: "no_change",
-            last_pushed_available: state.last_pushed_available
-          }.to_json
-        )
-        return :skipped
+      if !@force && state
+        if state.last_pushed_at.present? && state.last_pushed_at > COOLDOWN_WINDOW.ago
+          Rails.logger.info(
+            {
+              event: "stock_sync.push_marketplace.skip",
+              channel: shop.channel,
+              shop_code: shop.shop_code,
+              shop_id: shop.id,
+              sku_id: sku.id,
+              sku: sku.code,
+              available: available,
+              reason: @reason,
+              skip_reason: "cooldown",
+              last_pushed_at: state.last_pushed_at,
+              cooldown_seconds: COOLDOWN_WINDOW.to_i
+            }.to_json
+          )
+          return :skipped
+        end
+
+        if state.last_pushed_available == available
+          Rails.logger.info(
+            {
+              event: "stock_sync.push_marketplace.skip",
+              channel: shop.channel,
+              shop_code: shop.shop_code,
+              shop_id: shop.id,
+              sku_id: sku.id,
+              sku: sku.code,
+              available: available,
+              reason: @reason,
+              skip_reason: "no_change",
+              last_pushed_available: state.last_pushed_available
+            }.to_json
+          )
+          return :skipped
+        end
       end
 
       Rails.logger.info(
