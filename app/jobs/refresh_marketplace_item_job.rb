@@ -9,7 +9,6 @@ class RefreshMarketplaceItemJob < ApplicationJob
     case shop.channel
     when "tiktok"
       refresh_tiktok_variant!(shop, external_variant_id)
-
     when "lazada"
       refresh_lazada_variant!(shop, external_variant_id)
     end
@@ -35,12 +34,11 @@ class RefreshMarketplaceItemJob < ApplicationJob
 
   private
 
-  # ✅ TikTok: ต้องยิง full catalog แล้ว filter
   def refresh_tiktok_variant!(shop, external_variant_id)
     resp = Marketplace::Tiktok::Catalog::List.call!(
       shop: shop,
       page_size: 50,
-      max_pages: 5, # 🔥 จำกัด scope
+      max_pages: 5,
       strict: true,
       dry_run: false
     )
@@ -57,11 +55,18 @@ class RefreshMarketplaceItemJob < ApplicationJob
     )
   end
 
-  # ✅ Lazada: ใช้ sku_seller_list (ถูกต้อง)
   def refresh_lazada_variant!(shop, external_variant_id)
+    item = MarketplaceItem.find_by!(
+      shop_id: shop.id,
+      external_variant_id: external_variant_id.to_s
+    )
+
+    seller_sku = item.external_sku.to_s.strip
+    return if seller_sku.blank?
+
     resp = Marketplace::Lazada::Catalog::List.call!(
       shop: shop,
-      sku_seller_list: [ external_variant_id ] # 🔥 FIX
+      sku_seller_list: [ seller_sku ]
     )
 
     products = Array(resp[:rows])
