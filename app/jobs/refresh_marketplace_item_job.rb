@@ -8,23 +8,10 @@ class RefreshMarketplaceItemJob < ApplicationJob
 
     case shop.channel
     when "tiktok"
-      resp = Marketplace::Tiktok::Catalog::List.call!(
-        shop: shop,
-        page_size: 1,
-        variant_ids: [ external_variant_id ]
-      )
-
-      items = resp[:items] || []
-      Catalog::UpsertMarketplaceItems.call!(shop: shop, items: items)
+      refresh_tiktok_variant!(shop, external_variant_id)
 
     when "lazada"
-      resp = Marketplace::Lazada::Catalog::List.call!(
-        shop: shop,
-        sku_ids: [ external_variant_id ]
-      )
-
-      products = resp[:products] || []
-      Catalog::UpsertLazadaMarketplaceItems.call!(shop: shop, products: products)
+      refresh_lazada_variant!(shop, external_variant_id)
     end
 
     Rails.logger.info(
@@ -43,6 +30,46 @@ class RefreshMarketplaceItemJob < ApplicationJob
         external_variant_id: external_variant_id,
         err: e.message
       }.to_json
+    )
+  end
+
+  private
+
+  # ✅ TikTok: ต้องยิง full catalog แล้ว filter
+  def refresh_tiktok_variant!(shop, external_variant_id)
+    resp = Marketplace::Tiktok::Catalog::List.call!(
+      shop: shop,
+      page_size: 50,
+      max_pages: 5, # 🔥 จำกัด scope
+      strict: true,
+      dry_run: false
+    )
+
+    items = Array(resp[:items]).select do |it|
+      it[:external_variant_id].to_s == external_variant_id.to_s
+    end
+
+    return if items.empty?
+
+    Catalog::UpsertMarketplaceItems.call!(
+      shop: shop,
+      items: items
+    )
+  end
+
+  # ✅ Lazada: ใช้ sku_seller_list (ถูกต้อง)
+  def refresh_lazada_variant!(shop, external_variant_id)
+    resp = Marketplace::Lazada::Catalog::List.call!(
+      shop: shop,
+      sku_seller_list: [ external_variant_id ] # 🔥 FIX
+    )
+
+    products = Array(resp[:rows])
+    return if products.empty?
+
+    Catalog::UpsertLazadaMarketplaceItems.call!(
+      shop: shop,
+      products: products
     )
   end
 end
