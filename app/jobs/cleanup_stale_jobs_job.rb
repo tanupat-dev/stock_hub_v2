@@ -24,7 +24,6 @@ class CleanupStaleJobsJob < ApplicationJob
 
     stale_jobs.find_each do |job|
       scanned += 1
-
       next if claimed?(job.id)
 
       job.delete

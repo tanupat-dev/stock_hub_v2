@@ -83,6 +83,12 @@ production:
     args: []
     schedule: every 15 minutes
 
+  system_auto_heal:
+    class: SystemAutoHealJob
+    queue: default
+    args: []
+    schedule: every 15 minutes
+
 development:
   poll_tiktok_all_shops:
     class: PollTiktokAllShopsJob
@@ -146,3 +152,15 @@ development:
           stale_processing_older_than: 1800,
         }
     schedule: every 2 hours
+
+  cleanup_stale_jobs:
+    class: CleanupStaleJobsJob
+    queue: default
+    args: []
+    schedule: every 30 minutes
+
+  system_auto_heal:
+    class: SystemAutoHealJob
+    queue: default
+    args: []
+    schedule: every 30 minutes

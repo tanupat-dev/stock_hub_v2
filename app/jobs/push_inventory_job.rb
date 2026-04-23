@@ -72,73 +72,23 @@ class PushInventoryJob < ApplicationJob
       return :skipped
     end
 
-    case shop.channel
-    when "tiktok"
-      warehouse_id = item.raw_payload.dig("sku", "inventory", 0, "warehouse_id").to_s.strip
-      warehouse_id = "0" if warehouse_id.blank?
+    result =
+      case shop.channel
+      when "tiktok"
+        push_tiktok!(shop, item, mapping, product_id, variant_id, external_sku, desired_qty, reason)
+      when "lazada"
+        push_lazada!(shop, item, mapping, product_id, variant_id, external_sku, desired_qty, reason)
+      else
+        log_skip(shop, item, desired_qty, reason, "unsupported_channel")
+        :ignored
+      end
 
-      Marketplace::Tiktok::Inventory::Update.call!(
-        shop: shop,
-        product_id: product_id,
-        external_variant_id: variant_id,
-        quantity: desired_qty,
-        warehouse_id: warehouse_id,
-        reason: reason
-      )
+    return result unless result == :pushed
 
-      mark_success!(shop, variant_id, desired_qty, reason: reason)
-      enqueue_targeted_refresh(shop, variant_id)
+    enqueue_active_cleanup
+    enqueue_auto_heal(shop.id, reason)
 
-      Rails.logger.info(
-        {
-          event: "push_inventory_job.success",
-          shop_id: shop.id,
-          shop_code: shop.shop_code,
-          channel: shop.channel,
-          marketplace_item_id: item.id,
-          external_sku: external_sku,
-          external_product_id: product_id,
-          external_variant_id: variant_id,
-          warehouse_id: warehouse_id,
-          desired_qty: desired_qty.to_i,
-          reason: reason
-        }.to_json
-      )
-
-      :pushed
-    when "lazada"
-      Marketplace::Lazada::Stock::Update.call!(
-        shop: shop,
-        item_id: product_id,
-        sku_id: variant_id,
-        seller_sku: external_sku,
-        quantity: desired_qty,
-        reason: reason
-      )
-
-      mark_success!(shop, variant_id, desired_qty, reason: reason)
-      enqueue_targeted_refresh(shop, variant_id)
-
-      Rails.logger.info(
-        {
-          event: "push_inventory_job.success",
-          shop_id: shop.id,
-          shop_code: shop.shop_code,
-          channel: shop.channel,
-          marketplace_item_id: item.id,
-          external_sku: external_sku,
-          external_product_id: product_id,
-          external_variant_id: variant_id,
-          desired_qty: desired_qty.to_i,
-          reason: reason
-        }.to_json
-      )
-
-      :pushed
-    else
-      log_skip(shop, item, desired_qty, reason, "unsupported_channel")
-      :ignored
-    end
+    :pushed
   rescue => e
     mark_fail!(
       shop_id,
@@ -153,6 +103,72 @@ class PushInventoryJob < ApplicationJob
 
   private
 
+  def push_tiktok!(shop, item, mapping, product_id, variant_id, external_sku, desired_qty, reason)
+    warehouse_id = item.raw_payload.dig("sku", "inventory", 0, "warehouse_id").to_s.strip
+    warehouse_id = "0" if warehouse_id.blank?
+
+    Marketplace::Tiktok::Inventory::Update.call!(
+      shop: shop,
+      product_id: product_id,
+      external_variant_id: variant_id,
+      quantity: desired_qty,
+      warehouse_id: warehouse_id,
+      reason: reason
+    )
+
+    mark_success!(shop, variant_id, desired_qty, reason: reason)
+    enqueue_targeted_refresh(shop, variant_id)
+
+    Rails.logger.info(
+      {
+        event: "push_inventory_job.success",
+        shop_id: shop.id,
+        shop_code: shop.shop_code,
+        channel: shop.channel,
+        marketplace_item_id: item.id,
+        external_sku: external_sku,
+        external_product_id: product_id,
+        external_variant_id: variant_id,
+        warehouse_id: warehouse_id,
+        desired_qty: desired_qty.to_i,
+        reason: reason
+      }.to_json
+    )
+
+    :pushed
+  end
+
+  def push_lazada!(shop, item, mapping, product_id, variant_id, external_sku, desired_qty, reason)
+    Marketplace::Lazada::Stock::Update.call!(
+      shop: shop,
+      item_id: product_id,
+      sku_id: variant_id,
+      seller_sku: external_sku,
+      quantity: desired_qty,
+      reason: reason
+    )
+
+    mark_success!(shop, variant_id, desired_qty, reason: reason)
+    enqueue_targeted_refresh(shop, variant_id)
+
+    Rails.logger.info(
+      {
+        event: "push_inventory_job.success",
+        shop_id: shop.id,
+        shop_code: shop.shop_code,
+        channel: shop.channel,
+        marketplace_item_id: item.id,
+        external_sku: external_sku,
+        external_product_id: product_id,
+        external_variant_id: variant_id,
+        desired_qty: desired_qty.to_i,
+        reason: reason
+      }.to_json
+    )
+
+    :pushed
+  end
+
   def enqueue_targeted_refresh(shop, variant_id)
     RefreshMarketplaceItemJob.set(wait: 10.seconds).perform_later(shop.id, variant_id)
   rescue => e
@@ -163,6 +179,34 @@ class PushInventoryJob < ApplicationJob
         shop_code: shop.shop_code,
         channel: shop.channel,
         external_variant_id: variant_id,
+        err_class: e.class.name,
+        err_message: e.message
+      }.to_json
+    )
+  end
+
+  def enqueue_active_cleanup
+    CleanupStaleJobsJob.perform_later
+  rescue => e
+    Rails.logger.warn(
+      {
+        event: "push_inventory_job.cleanup_enqueue_fail",
+        err_class: e.class.name,
+        err_message: e.message
+      }.to_json
+    )
+  end
+
+  def enqueue_auto_heal(shop_id, reason)
+    return if reason.to_s == "reconcile_mismatch"
+
+    SystemAutoHealJob.perform_later(shop_id)
+  rescue => e
+    Rails.logger.warn(
+      {
+        event: "push_inventory_job.auto_heal_enqueue_fail",
+        shop_id: shop_id,
+        reason: reason,
         err_class: e.class.name,
         err_message: e.message
       }.to_json

@@ -96,6 +96,8 @@ class DebouncedSyncStockJob < ApplicationJob
       last_error: nil
     )
 
+    enqueue_active_cleanup
+
     Rails.logger.info(
       {
         event: "debounced_sync_stock_job.done",
@@ -127,5 +129,19 @@ class DebouncedSyncStockJob < ApplicationJob
     )
 
     raise
+  end
+
+  private
+
+  def enqueue_active_cleanup
+    CleanupStaleJobsJob.perform_later
+  rescue => e
+    Rails.logger.warn(
+      {
+        event: "debounced_sync_stock_job.cleanup_enqueue_fail",
+        err_class: e.class.name,
+        err_message: e.message
+      }.to_json
+    )
   end
 end
