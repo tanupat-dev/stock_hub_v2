@@ -5,6 +5,7 @@ module Pos
     class SaleNotCheckedOut < StandardError; end
     class SaleAlreadyVoided < StandardError; end
     class EmptySale < StandardError; end
+    class SaleNotCart < StandardError; end
 
     def self.call!(sale:, idempotency_key:, meta: {})
       new(sale:, idempotency_key:, meta:).call!
@@ -104,6 +105,62 @@ module Pos
       Rails.logger.error(
         {
           event: "pos.void_sale.error",
+          sale_id: @sale&.id,
+          err_class: e.class.name,
+          err_message: e.message
+        }.to_json
+      )
+      raise
+    end
+
+    def cancel_cart!
+      raise ArgumentError, "sale is required" if @sale.nil?
+
+      PosSale.transaction do
+        @sale.lock!
+        @sale.reload
+
+        return @sale if already_voided_by_same_request?
+
+        raise SaleAlreadyVoided, "sale already voided" if @sale.voided?
+        raise SaleNotCart, "sale is not cart" unless @sale.cart?
+
+        lines = @sale.pos_sale_lines.active_lines.order(:id).to_a
+        raise EmptySale, "no active lines in sale" if lines.empty?
+
+        line_ids = lines.map(&:id)
+
+        PosSaleLine.where(id: line_ids).update_all(
+          status: "voided",
+          updated_at: Time.current
+        )
+
+        @sale.update!(
+          status: "voided",
+          voided_at: Time.current,
+          item_count: 0,
+          meta: @sale.meta.merge(
+            "void_meta" => @meta,
+            "void_idempotency_key" => @idempotency_key,
+            "void_reason" => "cancel_cart"
+          )
+        )
+
+        Rails.logger.info(
+          {
+            event: "pos.cancel_cart.success",
+            sale_id: @sale.id,
+            line_ids: line_ids,
+            idempotency_key: @idempotency_key
+          }.to_json
+        )
+      end
+
+      @sale.reload
+    rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.cancel_cart.error",
           sale_id: @sale&.id,
           err_class: e.class.name,
           err_message: e.message
