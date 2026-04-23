@@ -80,7 +80,8 @@ production:
   cleanup_stale_jobs:
     class: CleanupStaleJobsJob
     queue: default
-    schedule: every 30 minutes
+    args: []
+    schedule: every 15 minutes
 
 development:
   poll_tiktok_all_shops:

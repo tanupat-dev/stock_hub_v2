@@ -12,45 +12,47 @@ class InventoryReconcileAllShopsJob < ApplicationJob
     skipped = 0
     errors = 0
 
-    Shop.where(active: true).find_each do |shop|
-      total += 1
+    Shop
+      .where(active: true, stock_sync_enabled: true, channel: SUPPORTED_CHANNELS)
+      .find_each do |shop|
+        total += 1
 
-      skip_reason = reconcile_skip_reason(shop)
-      if skip_reason.present?
-        skipped += 1
-        Rails.logger.info(
-          {
-            event: "inventory_reconcile_all_shops.skip",
-            shop_id: shop.id,
-            shop_code: shop.shop_code,
-            channel: shop.channel,
-            skip_reason: skip_reason
-          }.to_json
-        )
-        next
-      end
+        skip_reason = reconcile_skip_reason(shop)
+        if skip_reason.present?
+          skipped += 1
+          Rails.logger.info(
+            {
+              event: "inventory_reconcile_all_shops.skip",
+              shop_id: shop.id,
+              shop_code: shop.shop_code,
+              channel: shop.channel,
+              skip_reason: skip_reason
+            }.to_json
+          )
+          next
+        end
 
-      begin
-        InventoryReconcileJob.perform_later(
-          shop.id,
-          fresh_within: fresh_within,
-          push_limit: push_limit
-        )
-        enqueued += 1
-      rescue => e
-        errors += 1
-        Rails.logger.error(
-          {
-            event: "inventory_reconcile_all_shops.enqueue_fail",
-            shop_id: shop.id,
-            shop_code: shop.shop_code,
-            channel: shop.channel,
-            err_class: e.class.name,
-            err_message: e.message
-          }.to_json
-        )
+        begin
+          InventoryReconcileJob.perform_later(
+            shop.id,
+            fresh_within: fresh_within,
+            push_limit: push_limit
+          )
+          enqueued += 1
+        rescue => e
+          errors += 1
+          Rails.logger.error(
+            {
+              event: "inventory_reconcile_all_shops.enqueue_fail",
+              shop_id: shop.id,
+              shop_code: shop.shop_code,
+              channel: shop.channel,
+              err_class: e.class.name,
+              err_message: e.message
+            }.to_json
+          )
+        end
       end
-    end
 
     payload = {
       event: "inventory_reconcile_all_shops.done",
@@ -80,16 +82,19 @@ class InventoryReconcileAllShopsJob < ApplicationJob
 
   def reconcile_skip_reason(shop)
     return "inactive" unless shop.active?
+    return "stock_sync_disabled" unless shop.stock_sync_enabled?
     return "unsupported_channel" unless SUPPORTED_CHANNELS.include?(shop.channel)
 
     case shop.channel
     when "tiktok"
       return "missing_tiktok_credential" if shop.tiktok_credential_id.blank?
       return "missing_shop_cipher" if shop.shop_cipher.blank?
+
       nil
     when "lazada"
       return "missing_lazada_credential" if shop.lazada_credential_id.blank?
       return "missing_lazada_app" if shop.lazada_app_id.blank? && shop.lazada_credential&.lazada_app.blank?
+
       nil
     else
       "unsupported_channel"
