@@ -8,7 +8,7 @@ production:
     class: PollTiktokAllShopsJob
     queue: poll_orders
     args: []
-    schedule: every 90 seconds
+    schedule: every 2 minutes
 
   poll_lazada_all_shops:
     class: PollLazadaAllShopsJob
@@ -22,13 +22,13 @@ production:
     class: PollTiktokAllShopsReturnsJob
     queue: poll_orders
     args: []
-    schedule: every 3 minutes
+    schedule: every 30 minutes
 
   poll_lazada_all_shops_returns:
     class: PollLazadaAllShopsReturnsJob
     queue: poll_orders
     args: []
-    schedule: every 3 minutes
+    schedule: every 30 minutes
 <% end %>
 
 <% if ENV["ENABLE_CATALOG_SYNC"] == "true" %>
@@ -44,14 +44,14 @@ production:
           max_pages: 200,
           page_size: 50,
         }
-    schedule: every 1 hour
+    schedule: every 2 hours
 
   poll_lazada_all_shops_catalog:
     class: PollLazadaAllShopsCatalogJob
     queue: default
     args:
       - { filter: "all", limit: 20, max_pages: 200, full: false }
-    schedule: every 1 hour
+    schedule: every 2 hours
 <% end %>
 
 <% if ENV["ENABLE_RECONCILE"] == "true" %>
@@ -63,7 +63,7 @@ production:
           fresh_within: 21600,
           push_limit: 100,
         }
-    schedule: every 1 hour
+    schedule: every 2 hours
 <% end %>
 
   cleanup_stock_sync_requests:
@@ -94,7 +94,7 @@ production:
     class: SystemAutoHealJob
     queue: default
     args: []
-    schedule: every 15 minutes
+    schedule: every 2 hours
 
 development:
   poll_tiktok_all_shops:
@@ -113,7 +113,7 @@ development:
     class: PollTiktokAllShopsReturnsJob
     queue: poll_orders
     args: []
-    schedule: every 5 minutes
+    schedule: every 10 minutes
 
   poll_lazada_all_shops_returns:
     class: PollLazadaAllShopsReturnsJob
@@ -133,21 +133,21 @@ development:
           max_pages: 50,
           page_size: 50,
         }
-    schedule: every 30 minutes
+    schedule: every 1 hour
 
   poll_lazada_all_shops_catalog:
     class: PollLazadaAllShopsCatalogJob
     queue: default
     args:
       - { filter: "all", limit: 20, max_pages: 50, full: false }
-    schedule: every 30 minutes
+    schedule: every 1 hour
 
   inventory_reconcile_all_shops:
     class: InventoryReconcileAllShopsJob
     queue: reconcile
     args:
       - { fresh_within: 604800, push_limit: 50 }
-    schedule: every 1 hour
+    schedule: every 2 hours
 
   cleanup_stock_sync_requests:
     class: CleanupStockSyncRequestsJob
@@ -177,4 +177,4 @@ development:
     class: SystemAutoHealJob
     queue: default
     args: []
-    schedule: every 30 minutes
+    schedule: every 4 hours
