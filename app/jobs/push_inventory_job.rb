@@ -200,7 +200,16 @@ class PushInventoryJob < ApplicationJob
   def enqueue_auto_heal(shop_id, reason)
     return if reason.to_s == "reconcile_mismatch"
 
-    SystemAutoHealJob.perform_later(shop_id)
+    result = SystemAutoHealJob.enqueue_once!(shop_id)
+
+    Rails.logger.info(
+      {
+        event: "push_inventory_job.auto_heal_enqueue",
+        shop_id: shop_id,
+        reason: reason,
+        enqueue_result: result
+      }.to_json
+    )
   rescue => e
     Rails.logger.warn(
       {

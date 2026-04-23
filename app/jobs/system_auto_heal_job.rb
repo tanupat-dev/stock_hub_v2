@@ -3,17 +3,55 @@
 class SystemAutoHealJob < ApplicationJob
   queue_as :default
 
-  SHOP_HEAL_DEBOUNCE = 2.minutes
-  GLOBAL_HEAL_DEBOUNCE = 5.minutes
+  SHOP_WINDOW = 2.minutes
+  GLOBAL_WINDOW = 5.minutes
+
+  class << self
+    def enqueue_once!(shop_id = nil)
+      return :skipped if recently_enqueued?(shop_id)
+
+      perform_later(shop_id)
+      mark_enqueued!(shop_id)
+      :enqueued
+    end
+
+    private
+
+    def recently_enqueued?(shop_id)
+      ts = Rails.cache.read(cache_key(shop_id))
+      ts.present? && ts > window_for(shop_id).ago
+    end
+
+    def mark_enqueued!(shop_id)
+      Rails.cache.write(
+        cache_key(shop_id),
+        Time.current,
+        expires_in: window_for(shop_id)
+      )
+    end
+
+    def cache_key(shop_id)
+      if shop_id.present?
+        "system_auto_heal_job:shop:#{shop_id}"
+      else
+        "system_auto_heal_job:global"
+      end
+    end
+
+    def window_for(shop_id)
+      shop_id.present? ? SHOP_WINDOW : GLOBAL_WINDOW
+    end
+  end
 
   def perform(shop_id = nil)
     CleanupStaleJobsJob.perform_now
 
     if shop_id.present?
-      return :shop_heal_skipped if recently_healed_shop?(shop_id)
-
-      mark_shop_healed!(shop_id)
-      InventoryReconcileJob.perform_now(shop_id, fresh_within: 6.hours, push_limit: 100)
+      InventoryReconcileJob.perform_now(
+        shop_id,
+        fresh_within: 6.hours,
+        push_limit: 100
+      )
 
       Rails.logger.info(
         {
@@ -24,10 +62,10 @@ class SystemAutoHealJob < ApplicationJob
 
       :shop_healed
     else
-      return :global_heal_skipped if recently_healed_global?
-
-      mark_global_healed!
-      InventoryReconcileAllShopsJob.perform_now(fresh_within: 6.hours, push_limit: 100)
+      InventoryReconcileAllShopsJob.perform_now(
+        fresh_within: 6.hours,
+        push_limit: 100
+      )
 
       Rails.logger.info(
         {
@@ -37,33 +75,15 @@ class SystemAutoHealJob < ApplicationJob
 
       :global_healed
     end
-  end
-
-  private
-
-  def recently_healed_shop?(shop_id)
-    ts = Rails.cache.read(shop_cache_key(shop_id))
-    ts.present? && ts > SHOP_HEAL_DEBOUNCE.ago
-  end
-
-  def mark_shop_healed!(shop_id)
-    Rails.cache.write(shop_cache_key(shop_id), Time.current, expires_in: SHOP_HEAL_DEBOUNCE)
-  end
-
-  def recently_healed_global?
-    ts = Rails.cache.read(global_cache_key)
-    ts.present? && ts > GLOBAL_HEAL_DEBOUNCE.ago
-  end
-
-  def mark_global_healed!
-    Rails.cache.write(global_cache_key, Time.current, expires_in: GLOBAL_HEAL_DEBOUNCE)
-  end
-
-  def shop_cache_key(shop_id)
-    "system_auto_heal_job:shop:#{shop_id}"
-  end
-
-  def global_cache_key
-    "system_auto_heal_job:global"
+  rescue => e
+    Rails.logger.error(
+      {
+        event: "system_auto_heal_job.fail",
+        shop_id: shop_id,
+        err_class: e.class.name,
+        err_message: e.message
+      }.to_json
+    )
+    raise
   end
 end
