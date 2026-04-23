@@ -22,7 +22,7 @@ production:
     class: PollTiktokAllShopsReturnsJob
     queue: poll_orders
     args: []
-    schedule: every 3 minute
+    schedule: every 3 minutes
 
   poll_lazada_all_shops_returns:
     class: PollLazadaAllShopsReturnsJob
