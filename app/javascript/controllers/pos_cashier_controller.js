@@ -418,6 +418,36 @@ export default class extends Controller {
       .join("");
   }
 
+  async cancelCart() {
+    if (!this.currentSale) return;
+
+    if (!this.isCartSale()) {
+      this.toast("Only cart sale can be cancelled");
+      return;
+    }
+
+    if (!confirm("Cancel this sale?")) return;
+
+    try {
+      const data = await this.request(
+        `/pos/sales/${this.currentSale.id}/void`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            idempotency_key: this.generateKey("pos:cancel_cart"),
+          }),
+        },
+      );
+
+      if (!data) return;
+
+      this.setSale(null); // reset UI
+      this.toast("Sale cancelled");
+    } catch (e) {
+      this.toast(e.message);
+    }
+  }
+
   async selectSku(e) {
     const barcode = e.currentTarget.dataset.barcode;
     const skuCode = e.currentTarget.dataset.skuCode;
