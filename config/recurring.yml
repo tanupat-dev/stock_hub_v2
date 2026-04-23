@@ -8,13 +8,13 @@ production:
     class: PollTiktokAllShopsJob
     queue: poll_orders
     args: []
-    schedule: every 30 seconds
+    schedule: every 90 seconds
 
   poll_lazada_all_shops:
     class: PollLazadaAllShopsJob
     queue: poll_orders
     args: []
-    schedule: every 2 minutes
+    schedule: every 3 minutes
 <% end %>
 
 <% if ENV["ENABLE_POLL_RETURNS"] == "true" %>
@@ -22,13 +22,13 @@ production:
     class: PollTiktokAllShopsReturnsJob
     queue: poll_orders
     args: []
-    schedule: every 1 minute
+    schedule: every 3 minute
 
   poll_lazada_all_shops_returns:
     class: PollLazadaAllShopsReturnsJob
     queue: poll_orders
     args: []
-    schedule: every 2 minutes
+    schedule: every 3 minutes
 <% end %>
 
 <% if ENV["ENABLE_CATALOG_SYNC"] == "true" %>
