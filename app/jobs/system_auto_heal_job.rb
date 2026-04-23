@@ -44,37 +44,20 @@ class SystemAutoHealJob < ApplicationJob
   end
 
   def perform(shop_id = nil)
-    CleanupStaleJobsJob.perform_now
+    cleanup_enqueued = enqueue_cleanup_stale_jobs!
+    reconcile_enqueued = enqueue_reconcile!(shop_id)
 
-    if shop_id.present?
-      InventoryReconcileJob.perform_now(
-        shop_id,
-        fresh_within: 6.hours,
-        push_limit: 100
-      )
+    Rails.logger.info(
+      {
+        event: "system_auto_heal_job.enqueued",
+        mode: shop_id.present? ? "shop" : "global",
+        shop_id: shop_id,
+        cleanup_stale_jobs: cleanup_enqueued,
+        reconcile: reconcile_enqueued
+      }.to_json
+    )
 
-      Rails.logger.info(
-        {
-          event: "system_auto_heal_job.shop_done",
-          shop_id: shop_id
-        }.to_json
-      )
-
-      :shop_healed
-    else
-      InventoryReconcileAllShopsJob.perform_now(
-        fresh_within: 6.hours,
-        push_limit: 100
-      )
-
-      Rails.logger.info(
-        {
-          event: "system_auto_heal_job.global_done"
-        }.to_json
-      )
-
-      :global_healed
-    end
+    shop_id.present? ? :shop_heal_enqueued : :global_heal_enqueued
   rescue => e
     Rails.logger.error(
       {
@@ -85,5 +68,29 @@ class SystemAutoHealJob < ApplicationJob
       }.to_json
     )
     raise
+  end
+
+  private
+
+  def enqueue_cleanup_stale_jobs!
+    CleanupStaleJobsJob.perform_later
+    true
+  end
+
+  def enqueue_reconcile!(shop_id)
+    if shop_id.present?
+      InventoryReconcileJob.perform_later(
+        shop_id,
+        fresh_within: 6.hours,
+        push_limit: 100
+      )
+      :shop
+    else
+      InventoryReconcileAllShopsJob.perform_later(
+        fresh_within: 6.hours,
+        push_limit: 100
+      )
+      :all_shops
+    end
   end
 end
