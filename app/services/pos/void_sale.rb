@@ -125,19 +125,20 @@ module Pos
         raise SaleAlreadyVoided, "sale already voided" if @sale.voided?
         raise SaleNotCart, "sale is not cart" unless @sale.cart?
 
+        now = Time.current
         lines = @sale.pos_sale_lines.active_lines.order(:id).to_a
-        raise EmptySale, "no active lines in sale" if lines.empty?
-
         line_ids = lines.map(&:id)
 
-        PosSaleLine.where(id: line_ids).update_all(
-          status: "voided",
-          updated_at: Time.current
-        )
+        if line_ids.any?
+          PosSaleLine.where(id: line_ids).update_all(
+            status: "voided",
+            updated_at: now
+          )
+        end
 
         @sale.update!(
           status: "voided",
-          voided_at: Time.current,
+          voided_at: now,
           item_count: 0,
           meta: @sale.meta.merge(
             "void_meta" => @meta,
