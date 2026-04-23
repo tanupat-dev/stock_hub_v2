@@ -97,20 +97,23 @@ module Orders
         return "CANCELLED" if statuses.any? { |status| cancelled_status?(status) }
         return "CANCELLED" if statuses.any? { |status| reverse_or_failed_status?(status) }
 
-        # 2) delivered flow
+        # 2) unpaid ต้องไม่ reserve / commit / release
+        return "UNPAID" if statuses.any? { |status| unpaid_status?(status) }
+
+        # 3) delivered flow
         return "DELIVERED" if statuses.any? { |status| delivered_status?(status) }
 
-        # 3) in transit
+        # 4) in transit
         return "IN_TRANSIT" if statuses.any? { |status| in_transit_status?(status) }
 
-        # 4) pre-ship flow แบบเดียวกับ tiktok:
+        # 5) pre-ship flow
         #    ยังไม่พร้อมจัดส่ง = ไม่มี tracking
         #    พร้อมจัดส่งแล้ว = มี tracking
         if statuses.any? { |status| pre_ship_status?(status) }
           return has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
         end
 
-        # 5) fallback:
+        # 6) fallback:
         #    ถ้ามี tracking ให้ถือว่า READY_TO_SHIP
         #    ถ้าไม่มี tracking ให้ถือว่า AWAITING_FULFILLMENT
         has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
@@ -149,6 +152,12 @@ module Orders
           ].include?(status)
       end
 
+      def self.unpaid_status?(status)
+        %w[
+          unpaid
+        ].include?(status)
+      end
+
       def self.delivered_status?(status)
         %w[
           delivered
@@ -165,7 +174,6 @@ module Orders
       def self.pre_ship_status?(status)
         %w[
           pending
-          unpaid
           packed
           ready_to_ship_pending
           ready_to_ship

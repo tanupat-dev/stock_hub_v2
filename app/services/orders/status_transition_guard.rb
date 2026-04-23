@@ -5,7 +5,6 @@ module Orders
     module_function
 
     RESERVABLE_STATUSES = %w[
-      UNPAID
       ON_HOLD
       AWAITING_FULFILLMENT
       READY_TO_SHIP
@@ -21,6 +20,7 @@ module Orders
     NOOP_STATUSES = %w[
       DELIVERED
       COMPLETED
+      UNPAID
     ].freeze
 
     RELEASE_STATUSES = %w[

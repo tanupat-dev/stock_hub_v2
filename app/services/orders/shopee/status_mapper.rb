@@ -10,7 +10,7 @@ module Orders
         has_tracking = Orders::StatusTracking.present?(tracking_number)
 
         return "CANCELLED" if raw.include?("ยกเลิกแล้ว")
-        return "AWAITING_FULFILLMENT" if raw.include?("ยังไม่ชำระ")
+        return "UNPAID" if raw.include?("ยังไม่ชำระ")
 
         if raw.include?("ที่ต้องจัดส่ง") || raw.include?("รอการจัดส่ง")
           return has_tracking ? "READY_TO_SHIP" : "AWAITING_FULFILLMENT"
