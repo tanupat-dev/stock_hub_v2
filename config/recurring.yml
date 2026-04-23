@@ -77,6 +77,13 @@ production:
         }
     schedule: every 1 hour
 
+  cleanup_empty_pos_carts:
+    class: CleanupEmptyPosCartsJob
+    queue: default
+    args:
+      - { older_than_minutes: 30, limit: 200 }
+    schedule: every 15 minutes
+
   cleanup_stale_jobs:
     class: CleanupStaleJobsJob
     queue: default
@@ -152,6 +159,13 @@ development:
           stale_processing_older_than: 1800,
         }
     schedule: every 2 hours
+
+  cleanup_empty_pos_carts:
+    class: CleanupEmptyPosCartsJob
+    queue: default
+    args:
+      - { older_than_minutes: 30, limit: 200 }
+    schedule: every 30 minutes
 
   cleanup_stale_jobs:
     class: CleanupStaleJobsJob
