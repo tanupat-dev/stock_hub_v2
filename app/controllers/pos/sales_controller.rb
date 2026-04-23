@@ -275,28 +275,46 @@ module Pos
     end
 
     def void
-      sale = current_shop.pos_sales.find(params[:id])
+      sale = PosSale.find(params[:id])
 
-      result =
+      sale =
         if sale.cart?
           Pos::VoidSale.new(
             sale: sale,
-            idempotency_key: params[:idempotency_key],
-            meta: { source: "pos_cashier_cancel_cart" }
+            idempotency_key: params.require(:idempotency_key),
+            meta: { source: "pos_api", mode: "cancel_cart" }
           ).cancel_cart!
         else
           Pos::VoidSale.call!(
             sale: sale,
-            idempotency_key: params[:idempotency_key],
-            meta: { source: "pos_cashier_void_sale" }
+            idempotency_key: params.require(:idempotency_key),
+            meta: { source: "pos_api", mode: "void_sale" }
           )
         end
 
       render json: {
         ok: true,
-        sale: serialize_sale(result)
+        sale: serialize_sale(sale, include_lines: true)
       }
+    rescue Pos::VoidSale::SaleNotCheckedOut,
+          Pos::VoidSale::SaleAlreadyVoided,
+          Pos::VoidSale::EmptySale,
+          Pos::VoidSale::SaleNotCart => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "sale not found" }, status: :not_found
+    rescue ActionController::ParameterMissing => e
+      render json: { ok: false, error: e.message }, status: :bad_request
     rescue => e
+      Rails.logger.error(
+        {
+          event: "pos.sales.void.failed",
+          err_class: e.class.name,
+          err_message: e.message,
+          sale_id: params[:id]
+        }.to_json
+      )
+
       render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
 
