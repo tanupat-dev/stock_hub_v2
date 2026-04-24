@@ -41,17 +41,17 @@ production:
           enqueue_sync_sku_master: true,
           dry_run: false,
           resume: true,
-          max_pages: 200,
+          max_pages: 50,
           page_size: 50,
         }
-    schedule: every 2 hours
+    schedule: every 6 hours
 
   poll_lazada_all_shops_catalog:
     class: PollLazadaAllShopsCatalogJob
     queue: default
     args:
-      - { filter: "all", limit: 20, max_pages: 200, full: false }
-    schedule: every 2 hours
+      - { filter: "all", limit: 20, max_pages: 50, full: false }
+    schedule: every 6 hours
 <% end %>
 
 <% if ENV["ENABLE_RECONCILE"] == "true" %>
@@ -61,7 +61,7 @@ production:
     args:
       - {
           fresh_within: 21600,
-          push_limit: 100,
+          push_limit: 50,
         }
     schedule: every 2 hours
 <% end %>
