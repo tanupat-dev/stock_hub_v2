@@ -14,13 +14,13 @@ module Orders
       end
 
       def call!
-        status = @raw.fetch("status").to_s
+        status = @raw["status"].to_s
 
         action =
           if Orders::StatusTransitionGuard.should_reserve?(
-               previous_status: @previous_status,
-               current_status: status
-             )
+              previous_status: @previous_status,
+              current_status: status
+            )
             :reserve
           elsif Orders::StatusTransitionGuard.should_commit?(
                   previous_status: @previous_status,
@@ -36,9 +36,28 @@ module Orders
             nil
           end
 
+        # ✅ NEW: handle cancelled after commit
+        if action.nil?
+          Returns::CreateFromCancelledAfterCommit.call!(
+            order: @order,
+            previous_status: @previous_status,
+            current_status: status,
+            source: "shopee"
+          )
+        end
+
         return noop_payload(status) if action.nil?
 
-        apply!(action)
+        Orders::ApplyInventoryPolicy.call!(
+          order: @order,
+          action: action,
+          idempotency_prefix: "shopee:order:#{@order.external_order_id}",
+          meta: {
+            source: "shopee_import",
+            status: status,
+            previous_status: @previous_status
+          }
+        )
       end
 
       private

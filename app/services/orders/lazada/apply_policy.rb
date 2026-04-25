@@ -18,9 +18,9 @@ module Orders
 
         action =
           if Orders::StatusTransitionGuard.should_reserve?(
-               previous_status: @previous_status,
-               current_status: status
-             )
+              previous_status: @previous_status,
+              current_status: status
+            )
             :reserve
           elsif Orders::StatusTransitionGuard.should_commit?(
                   previous_status: @previous_status,
@@ -35,6 +35,16 @@ module Orders
           else
             nil
           end
+
+        # ✅ NEW: handle cancelled after commit
+        if action.nil?
+          Returns::CreateFromCancelledAfterCommit.call!(
+            order: @order,
+            previous_status: @previous_status,
+            current_status: status,
+            source: "lazada"
+          )
+        end
 
         return noop_payload(status) if action.nil?
 
