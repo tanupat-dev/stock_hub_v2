@@ -189,9 +189,9 @@ module Orders
     def apply_inventory!(order, status, previous_status)
       action =
         if Orders::StatusTransitionGuard.should_reserve?(
-             previous_status: previous_status,
-             current_status: status
-           )
+            previous_status: previous_status,
+            current_status: status
+          )
           :reserve
         elsif Orders::StatusTransitionGuard.should_commit?(
                 previous_status: previous_status,
@@ -207,7 +207,15 @@ module Orders
           :noop
         end
 
-      return if action == :noop
+      if action == :noop
+        Returns::CreateFromCancelledAfterCommit.call!(
+          order: order,
+          previous_status: previous_status,
+          current_status: status,
+          source: "tiktok_poll_search_rows"
+        )
+        return
+      end
 
       Orders::ApplyInventoryPolicy.call!(
         order: order,
