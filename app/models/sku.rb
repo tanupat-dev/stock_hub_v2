@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 class Sku < ApplicationRecord
+  belongs_to :stock_identity, optional: true
+
   has_one :inventory_balance,
-          class_name: "InventoryBalance",
-          dependent: :destroy
+          class_name: "InventoryBalance"
 
   has_many :order_lines
   has_many :sku_mappings
@@ -17,9 +18,18 @@ class Sku < ApplicationRecord
 
   after_commit :sync_stock_if_buffer_changed, on: :update
 
+  def inventory_balance
+    if stock_identity_id.present?
+      InventoryBalance.find_by(stock_identity_id: stock_identity_id) || super
+    else
+      super
+    end
+  end
+
   def store_available
     b = inventory_balance
     return 0 unless b
+
     b.store_available
   end
 
@@ -27,6 +37,7 @@ class Sku < ApplicationRecord
     b = inventory_balance
     return 0 unless b
     return 0 if b.frozen_now?
+
     b.online_available(buffer_quantity: buffer_quantity)
   end
 

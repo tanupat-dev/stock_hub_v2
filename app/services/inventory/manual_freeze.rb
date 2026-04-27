@@ -13,7 +13,7 @@ module Inventory
     end
 
     def call!
-      b = @sku.inventory_balance || @sku.create_inventory_balance!(on_hand: 0, reserved: 0)
+      b = Inventory::BalanceFetcher.fetch_for_update!(sku: @sku)
 
       before = nil
       after = nil

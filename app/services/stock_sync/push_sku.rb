@@ -15,14 +15,23 @@ module StockSync
     end
 
     def call!
-      sku = @sku
-      available = sku.online_available
+      root_sku = @sku
+      available = root_sku.online_available
+
+      skus =
+        if root_sku.stock_identity_id.present?
+          Sku.where(stock_identity_id: root_sku.stock_identity_id).order(:id)
+        else
+          Sku.where(id: root_sku.id)
+        end
 
       Rails.logger.info(
         {
-          event: "stock_sync.push_sku.start",
-          sku_id: sku.id,
-          sku: sku.code,
+          event: "stock_sync.push_sku_group.start",
+          root_sku_id: root_sku.id,
+          root_sku: root_sku.code,
+          stock_identity_id: root_sku.stock_identity_id,
+          group_size: skus.count,
           available: available,
           reason: @reason,
           forced: @force
@@ -36,34 +45,38 @@ module StockSync
         failed: 0
       }
 
-      SkuMapping
-        .where(sku_id: sku.id)
-        .joins(:shop)
-        .merge(Shop.where(active: true))
-        .includes(:shop)
-        .find_each do |mapping|
-          shop = mapping.shop
-          next if shop.nil?
+      skus.find_each do |sku|
+        SkuMapping
+          .where(sku_id: sku.id)
+          .joins(:shop)
+          .merge(Shop.where(active: true))
+          .includes(:shop)
+          .find_each do |mapping|
+            shop = mapping.shop
+            next if shop.nil?
 
-          stats[:scanned] += 1
+            stats[:scanned] += 1
 
-          result = push_one_shop!(shop, sku, available, mapping)
+            result = push_one_shop!(shop, sku, available, mapping)
 
-          case result
-          when :enqueued
-            stats[:enqueued] += 1
-          when :failed
-            stats[:failed] += 1
-          else
-            stats[:skipped] += 1
+            case result
+            when :enqueued
+              stats[:enqueued] += 1
+            when :failed
+              stats[:failed] += 1
+            else
+              stats[:skipped] += 1
+            end
           end
-        end
+      end
 
       Rails.logger.info(
         {
-          event: "stock_sync.push_sku.done",
-          sku_id: sku.id,
-          sku: sku.code,
+          event: "stock_sync.push_sku_group.done",
+          root_sku_id: root_sku.id,
+          root_sku: root_sku.code,
+          stock_identity_id: root_sku.stock_identity_id,
+          group_size: skus.count,
           available: available,
           reason: @reason,
           forced: @force

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_16_145734) do
+ActiveRecord::Schema[8.0].define(version: 2026_04_27_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -60,8 +60,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_16_145734) do
     t.datetime "frozen_at"
     t.integer "last_pushed_available"
     t.datetime "last_pushed_at"
+    t.bigint "stock_identity_id"
     t.index ["frozen_at"], name: "index_inventory_balances_on_frozen_at"
     t.index ["sku_id"], name: "index_inventory_balances_on_sku_id", unique: true
+    t.index ["stock_identity_id"], name: "index_inventory_balances_on_stock_identity_id", unique: true
     t.check_constraint "on_hand >= 0", name: "chk_on_hand_non_negative"
     t.check_constraint "reserved >= 0", name: "chk_reserved_non_negative"
   end
@@ -505,11 +507,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_16_145734) do
     t.integer "buffer_quantity", default: 3, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "stock_identity_id"
     t.index ["active"], name: "index_skus_on_active"
     t.index ["archived_at"], name: "index_skus_on_archived_at"
     t.index ["barcode"], name: "index_skus_on_barcode", unique: true
     t.index ["buffer_quantity"], name: "index_skus_on_buffer_quantity"
     t.index ["code"], name: "index_skus_on_code", unique: true
+    t.index ["stock_identity_id"], name: "index_skus_on_stock_identity_id"
     t.check_constraint "buffer_quantity >= 0", name: "chk_sku_buffer_non_negative"
   end
 
@@ -673,6 +677,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_16_145734) do
     t.index ["status"], name: "index_stock_count_sessions_on_status"
   end
 
+  create_table "stock_identities", force: :cascade do |t|
+    t.string "code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_stock_identities_on_code", unique: true
+  end
+
   create_table "stock_movements", force: :cascade do |t|
     t.bigint "sku_id", null: false
     t.integer "delta_on_hand", null: false
@@ -746,6 +757,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_16_145734) do
   add_foreign_key "inventory_actions", "order_lines"
   add_foreign_key "inventory_actions", "skus"
   add_foreign_key "inventory_balances", "skus"
+  add_foreign_key "inventory_balances", "stock_identities"
   add_foreign_key "inventory_reconcile_runs", "shops"
   add_foreign_key "lazada_credentials", "lazada_apps"
   add_foreign_key "marketplace_items", "shops"
@@ -786,6 +798,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_16_145734) do
   add_foreign_key "shops", "tiktok_credentials"
   add_foreign_key "sku_mappings", "shops"
   add_foreign_key "sku_mappings", "skus"
+  add_foreign_key "skus", "stock_identities"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

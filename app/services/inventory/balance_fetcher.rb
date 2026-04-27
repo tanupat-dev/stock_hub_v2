@@ -5,14 +5,23 @@ module Inventory
     def self.fetch_for_update!(sku:)
       raise ArgumentError, "sku is required" if sku.nil?
 
+      stock_identity_id = sku.stock_identity_id
+      raise "stock_identity_id missing for sku=#{sku.id} (should not happen)" if stock_identity_id.blank?
+
       loop do
-        balance = InventoryBalance.lock.find_by(sku_id: sku.id)
+        balance = InventoryBalance.lock.find_by(stock_identity_id: stock_identity_id)
+
         return balance if balance
 
         begin
-          sku.create_inventory_balance!(on_hand: 0, reserved: 0)
+          InventoryBalance.create!(
+            stock_identity_id: stock_identity_id,
+            sku_id: sku.id,
+            on_hand: 0,
+            reserved: 0
+          )
         rescue ActiveRecord::RecordNotUnique
-          # another transaction created it first
+          # retry
         end
       end
     end

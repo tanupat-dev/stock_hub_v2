@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 class InventoryBalance < ApplicationRecord
-  belongs_to :sku
+  belongs_to :sku, optional: true
+  belongs_to :stock_identity, optional: true
 
   validates :on_hand, numericality: { greater_than_or_equal_to: 0 }
   validates :reserved, numericality: { greater_than_or_equal_to: 0 }
@@ -39,15 +40,24 @@ class InventoryBalance < ApplicationRecord
       previous_changes.key?("frozen_at") ||
       previous_changes.key?("freeze_reason")
 
-    sku = self.sku
-    return if sku.nil?
+    sync_skus.find_each do |sku|
+      next unless StockSync::Rollout.sku_allowed?(sku.code)
 
-    return unless StockSync::Rollout.sku_allowed?(sku.code)
+      StockSync::RequestDebouncer.call!(
+        sku: sku,
+        reason: "inventory_balance_change"
+      )
+    end
+  end
 
-    StockSync::RequestDebouncer.call!(
-      sku: sku,
-      reason: "inventory_balance_change"
-    )
+  def sync_skus
+    if stock_identity_id.present?
+      Sku.where(stock_identity_id: stock_identity_id)
+    elsif sku_id.present?
+      Sku.where(id: sku_id)
+    else
+      Sku.none
+    end
   end
 
   def solid_queue_ready?

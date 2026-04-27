@@ -19,6 +19,38 @@ module StockSync
     def call!
       raise ArgumentError, "sku is required" if @sku.nil?
 
+      skus =
+        if @sku.stock_identity_id.present?
+          Sku.where(stock_identity_id: @sku.stock_identity_id).order(:id)
+        else
+          Sku.where(id: @sku.id)
+        end
+
+      reqs = []
+
+      skus.find_each do |sku|
+        reqs << enqueue_for_single_sku!(sku)
+      end
+
+      Rails.logger.info(
+        {
+          event: "stock_sync.request_debouncer_group",
+          root_sku_id: @sku.id,
+          root_sku: @sku.code,
+          stock_identity_id: @sku.stock_identity_id,
+          group_size: skus.count,
+          reason: @reason,
+          debounce_seconds: @debounce_seconds,
+          request_ids: reqs.map(&:id)
+        }.to_json
+      )
+
+      reqs
+    end
+
+    private
+
+    def enqueue_for_single_sku!(sku)
       now = Time.current
       scheduled_for = now + @debounce_seconds.seconds
 
@@ -26,11 +58,11 @@ module StockSync
       should_enqueue = false
 
       StockSyncRequest.transaction do
-        req = StockSyncRequest.lock.find_by(sku_id: @sku.id)
+        req = StockSyncRequest.lock.find_by(sku_id: sku.id)
 
         if req.nil?
           req = StockSyncRequest.create!(
-            sku_id: @sku.id,
+            sku_id: sku.id,
             status: "pending",
             last_reason: @reason,
             first_requested_at: now,
@@ -55,22 +87,23 @@ module StockSync
           )
         end
 
-        if should_enqueue
-          req.update!(last_enqueued_at: now)
-        end
+        req.update!(last_enqueued_at: now) if should_enqueue
       end
 
       if should_enqueue
         DebouncedSyncStockJob
           .set(wait_until: req.scheduled_for)
-          .perform_later(@sku.id)
+          .perform_later(sku.id)
       end
 
       Rails.logger.info(
         {
           event: "stock_sync.request_debouncer",
-          sku_id: @sku.id,
-          sku: @sku.code,
+          sku_id: sku.id,
+          sku: sku.code,
+          root_sku_id: @sku.id,
+          root_sku: @sku.code,
+          stock_identity_id: sku.stock_identity_id,
           reason: @reason,
           debounce_seconds: @debounce_seconds,
           scheduled_for: req.scheduled_for,
