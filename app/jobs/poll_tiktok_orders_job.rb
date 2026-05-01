@@ -127,7 +127,7 @@ class PollTiktokOrdersJob < ApplicationJob
       if fetched == 0
         window_lt
       elsif fully_drained
-        [ max_update_time_seen, window_lt ].min
+        window_lt
       else
         cursor_ts
       end
@@ -149,6 +149,7 @@ class PollTiktokOrdersJob < ApplicationJob
         update_time_lt: window_lt,
         requested_window_lt: requested_window_lt,
         cursor_written: cursor_written,
+        max_update_time_seen: max_update_time_seen,
         fetched: fetched,
         pages: pages,
         fully_drained: fully_drained,
