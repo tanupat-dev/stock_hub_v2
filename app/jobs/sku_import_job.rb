@@ -208,6 +208,7 @@ class SkuImportJob < ApplicationJob
       model: presence_or_nil(row["model"]),
       color: presence_or_nil(row["color"]),
       size: presence_or_nil(row["size"]),
+      created_at: now,   # 🔥 FIX
       updated_at: now
     }.tap do |attrs|
       buffer = parse_non_negative_integer(row["buffer_quantity"])
