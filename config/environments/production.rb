@@ -40,7 +40,7 @@ Rails.application.configure do
   }
 
   # Log to STDOUT with request id tag.
-  config.log_tags = [:request_id]
+  config.log_tags = [ :request_id ]
   config.logger = ActiveSupport::TaggedLogging.logger(STDOUT)
 
   # Default log level.
@@ -53,7 +53,7 @@ Rails.application.configure do
   config.active_support.report_deprecations = false
 
   # Rails 8 solid stack
-  config.cache_store = :solid_cache_store
+  config.cache_store = :memory_store, { size: 64.megabytes }
   config.active_job.queue_adapter = :solid_queue
 
   # Mailer host
@@ -70,7 +70,7 @@ Rails.application.configure do
   config.active_record.dump_schema_after_migration = false
 
   # Only use :id for inspections in production.
-  config.active_record.attributes_for_inspect = [:id]
+  config.active_record.attributes_for_inspect = [ :id ]
 
   # Host authorization
   config.hosts << app_host
