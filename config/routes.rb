@@ -47,7 +47,7 @@ Rails.application.routes.draw do
       end
     end
 
-    resources :sku_imports, only: :create
+    resources :sku_imports, only: [ :create, :show ]
 
     resources :orders, only: :index do
       collection do

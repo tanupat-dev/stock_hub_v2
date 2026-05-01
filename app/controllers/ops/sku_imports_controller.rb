@@ -26,7 +26,6 @@ module Ops
         total_rows: rows.size
       )
 
-      # 🚀 ส่ง DATA เข้า job แทน file
       SkuImportJob.perform_later(batch.id, rows)
 
       render json: {
@@ -45,6 +44,33 @@ module Ops
       )
 
       render json: { ok: false, error: e.message }, status: :internal_server_error
+    end
+
+    def show
+      batch = SkuImportBatch.find(params[:id])
+
+      render json: {
+        ok: true,
+        batch: batch.attributes.slice(
+          "id",
+          "status",
+          "dry_run",
+          "stock_mode",
+          "original_filename",
+          "total_rows",
+          "upsert_rows",
+          "stock_updated",
+          "stock_failed",
+          "result",
+          "error_message",
+          "started_at",
+          "completed_at",
+          "created_at",
+          "updated_at"
+        )
+      }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "Import batch not found" }, status: :not_found
     end
 
     private

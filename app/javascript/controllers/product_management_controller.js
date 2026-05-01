@@ -175,9 +175,7 @@ export default class extends Controller {
     if (stockMode) url.searchParams.set("stock_mode", stockMode);
 
     this.importSubmitButtonTarget.disabled = true;
-    this.importSubmitButtonTarget.textContent = dryRun
-      ? "Previewing..."
-      : "Uploading...";
+    this.importSubmitButtonTarget.textContent = "Uploading...";
     this.hideImportMessage();
     this.hideImportResult();
 
@@ -200,16 +198,28 @@ export default class extends Controller {
         throw new Error(data.error || "Upload failed");
       }
 
+      if (!data.batch_id) {
+        throw new Error("Upload queued but batch_id was missing");
+      }
+
       this.showImportMessage(
         "success",
-        data.result?.dry_run ? "Preview completed" : "Import completed",
+        `Upload queued. Processing batch #${data.batch_id}...`,
       );
 
-      this.renderImportResult(data.result);
+      this.importSubmitButtonTarget.textContent = "Processing...";
 
-      if (!data.result?.dry_run) {
+      const batch = await this.pollImportBatchStatus(data.batch_id);
+
+      this.renderImportBatchResult(batch);
+
+      if (batch.status === "completed") {
+        this.showImportMessage("success", "Import completed");
+
         await this.loadSkus();
         await this.loadFacets();
+      } else {
+        throw new Error(batch.error_message || "Import failed");
       }
     } catch (error) {
       console.error("submitImport error", error);
@@ -218,6 +228,43 @@ export default class extends Controller {
       this.importSubmitButtonTarget.disabled = false;
       this.importSubmitButtonTarget.textContent = "Upload CSV";
     }
+  }
+
+  async pollImportBatchStatus(batchId) {
+    const maxAttempts = 120;
+    const delayMs = 2000;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const response = await fetch(`/ops/sku_imports/${batchId}`, {
+        headers: this.jsonHeaders(),
+      });
+
+      const data = await this.parseJsonResponse(
+        response,
+        `pollImportBatchStatus /ops/sku_imports/${batchId}`,
+      );
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Failed to check import status");
+      }
+
+      const batch = data.batch;
+
+      this.showImportMessage(
+        "success",
+        `Import ${batch.status}: ${batch.upsert_rows || 0}/${batch.total_rows || 0} rows`,
+      );
+
+      this.renderImportBatchResult(batch);
+
+      if (batch.status === "completed" || batch.status === "failed") {
+        return batch;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    throw new Error("Import is still processing. Please check again later.");
   }
 
   async loadFacets() {
@@ -704,6 +751,19 @@ export default class extends Controller {
       event.currentTarget.disabled = false;
       event.currentTarget.textContent = originalText;
     }
+  }
+
+  renderImportBatchResult(batch) {
+    this.renderImportResult({
+      total_rows: batch.total_rows,
+      upsert_rows: batch.upsert_rows,
+      duplicate_rows_in_file: 0,
+      invalid_format_rows: 0,
+      stock_updated: batch.stock_updated,
+      stock_failed: batch.stock_failed,
+      stock_failed_samples: batch.result?.stock_failed_samples || [],
+      dry_run: batch.dry_run,
+    });
   }
 
   renderImportResult(result) {
