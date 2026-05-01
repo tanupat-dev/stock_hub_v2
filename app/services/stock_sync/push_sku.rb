@@ -42,6 +42,7 @@ module StockSync
         scanned: 0,
         enqueued: 0,
         skipped: 0,
+        skipped_pending_duplicate: 0,
         failed: 0
       }
 
@@ -62,6 +63,8 @@ module StockSync
             case result
             when :enqueued
               stats[:enqueued] += 1
+            when :pending_duplicate
+              stats[:skipped_pending_duplicate] += 1
             when :failed
               stats[:failed] += 1
             else
@@ -170,7 +173,7 @@ module StockSync
         end
 
       if result != :enqueued
-        level = (result == :skipped ? :info : :warn)
+        level = (result == :skipped || result == :pending_duplicate ? :info : :warn)
         Rails.logger.public_send(
           level,
           {
@@ -186,7 +189,7 @@ module StockSync
             result: result
           }.to_json
         )
-        return :skipped
+        return result == :pending_duplicate ? :pending_duplicate : :skipped
       end
 
       :enqueued
@@ -235,6 +238,24 @@ module StockSync
         return :skipped
       end
 
+      if pending_push_inventory_job?(item.id)
+        Rails.logger.info(
+          {
+            event: "stock_sync.push_marketplace.skip",
+            channel: shop.channel,
+            shop_code: shop.shop_code,
+            shop_id: shop.id,
+            sku_id: sku.id,
+            sku: sku.code,
+            marketplace_item_id: item.id,
+            available: available,
+            reason: @reason,
+            skip_reason: "pending_push_inventory_job"
+          }.to_json
+        )
+        return :pending_duplicate
+      end
+
       PushInventoryJob.perform_later(
         shop.id,
         item.id,
@@ -243,6 +264,24 @@ module StockSync
       )
 
       :enqueued
+    end
+
+    def pending_push_inventory_job?(marketplace_item_id)
+      SolidQueue::Job
+        .where(class_name: "PushInventoryJob", finished_at: nil)
+        .where("arguments::text LIKE ?", "%#{marketplace_item_id}%")
+        .exists?
+    rescue => e
+      Rails.logger.warn(
+        {
+          event: "stock_sync.pending_push_check_failed",
+          marketplace_item_id: marketplace_item_id,
+          err_class: e.class.name,
+          err_message: e.message
+        }.to_json
+      )
+
+      false
     end
   end
 end
