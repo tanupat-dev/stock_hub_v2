@@ -10,9 +10,37 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_27_000001) do
+ActiveRecord::Schema[8.0].define(version: 2026_05_01_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "record_type", null: false
+    t.bigint "record_id", null: false
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "filename", null: false
+    t.string "content_type"
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.datetime "created_at", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "file_batches", force: :cascade do |t|
     t.string "channel", null: false
@@ -480,6 +508,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_27_000001) do
     t.index ["tiktok_returns_last_seen_update_time"], name: "index_shops_on_tiktok_returns_last_seen_update_time"
   end
 
+  create_table "sku_import_batches", force: :cascade do |t|
+    t.string "status", default: "pending", null: false
+    t.boolean "dry_run", default: false, null: false
+    t.string "stock_mode", default: "skip", null: false
+    t.string "original_filename"
+    t.integer "total_rows", default: 0, null: false
+    t.integer "upsert_rows", default: 0, null: false
+    t.integer "stock_updated", default: 0, null: false
+    t.integer "stock_failed", default: 0, null: false
+    t.jsonb "result", default: {}, null: false
+    t.text "error_message"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_sku_import_batches_on_created_at"
+    t.index ["status"], name: "index_sku_import_batches_on_status"
+  end
+
   create_table "sku_mappings", force: :cascade do |t|
     t.string "channel", null: false
     t.bigint "shop_id", null: false
@@ -753,6 +800,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_27_000001) do
     t.index ["tiktok_app_id"], name: "index_tiktok_credentials_on_tiktok_app_id"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "file_batches", "shops"
   add_foreign_key "inventory_actions", "order_lines"
   add_foreign_key "inventory_actions", "skus"
