@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
-require "csv"
-
 class SkuImportJob < ApplicationJob
   queue_as :default
 
   BATCH_SIZE = 200
 
-  def perform(batch_id)
+  def perform(batch_id, rows)
     batch = SkuImportBatch.find(batch_id)
 
     batch.update!(
@@ -16,13 +14,35 @@ class SkuImportJob < ApplicationJob
       error_message: nil
     )
 
-    raise "missing attached import file" unless batch.file.attached?
+    now = Time.current
 
-    batch.file.blob.open do |tempfile|
-      process_file(tempfile, batch)
+    total_rows = 0
+    upsert_rows_count = 0
+    stock_updated = 0
+    stock_failed = 0
+    stock_failed_samples = []
+
+    rows.each_slice(BATCH_SIZE) do |chunk|
+      stats = process_chunk(chunk, now, batch)
+
+      total_rows += stats[:total_rows]
+      upsert_rows_count += stats[:upsert_rows]
+      stock_updated += stats[:stock_updated]
+      stock_failed += stats[:stock_failed]
+
+      stock_failed_samples.concat(stats[:stock_failed_samples])
+      stock_failed_samples = stock_failed_samples.first(20)
+
+      batch.update_columns(
+        total_rows: total_rows,
+        upsert_rows: upsert_rows_count,
+        stock_updated: stock_updated,
+        stock_failed: stock_failed,
+        result: { stock_failed_samples: stock_failed_samples },
+        updated_at: Time.current
+      )
     end
 
-    # ยิง sync เฉพาะตอน set_exact เท่านั้น
     trigger_bulk_sync if batch.stock_mode != "skip" && !batch.dry_run
 
     batch.update!(
@@ -50,46 +70,6 @@ class SkuImportJob < ApplicationJob
 
   private
 
-  # =========================
-  # MAIN PROCESS
-  # =========================
-
-  def process_file(tempfile, batch)
-    now = Time.current
-
-    total_rows = 0
-    upsert_rows_count = 0
-    stock_updated = 0
-    stock_failed = 0
-    stock_failed_samples = []
-
-    CSV.foreach(tempfile.path, headers: true, encoding: "bom|utf-8", liberal_parsing: true)
-       .each_slice(BATCH_SIZE) do |rows|
-      stats = process_chunk(rows, now, batch)
-
-      total_rows += stats[:total_rows]
-      upsert_rows_count += stats[:upsert_rows]
-      stock_updated += stats[:stock_updated]
-      stock_failed += stats[:stock_failed]
-
-      stock_failed_samples.concat(stats[:stock_failed_samples])
-      stock_failed_samples = stock_failed_samples.first(20)
-
-      batch.update_columns(
-        total_rows: total_rows,
-        upsert_rows: upsert_rows_count,
-        stock_updated: stock_updated,
-        stock_failed: stock_failed,
-        result: { stock_failed_samples: stock_failed_samples },
-        updated_at: Time.current
-      )
-    end
-  end
-
-  # =========================
-  # CHUNK PROCESS
-  # =========================
-
   def process_chunk(rows, now, batch)
     upsert_rows = []
     stock_rows = []
@@ -106,7 +86,6 @@ class SkuImportJob < ApplicationJob
       }
     end
 
-    # -------- UPSERT SKU --------
     unless batch.dry_run || upsert_rows.empty?
       Sku.upsert_all(
         upsert_rows,
@@ -116,11 +95,9 @@ class SkuImportJob < ApplicationJob
       )
     end
 
-    # -------- ENSURE IDENTITY (CRITICAL) --------
     skus = Sku.where(code: upsert_rows.map { |r| r[:code] })
     ensure_identity!(skus) unless batch.dry_run
 
-    # -------- SKU ONLY MODE --------
     if batch.stock_mode == "skip"
       return {
         total_rows: rows.size,
@@ -131,7 +108,6 @@ class SkuImportJob < ApplicationJob
       }
     end
 
-    # -------- SET EXACT MODE --------
     stock_stats = apply_stock_rows(stock_rows, batch)
 
     {
@@ -141,15 +117,9 @@ class SkuImportJob < ApplicationJob
     }
   end
 
-  # =========================
-  # ENSURE IDENTITY (CRITICAL FIX)
-  # =========================
-
   def ensure_identity!(skus)
     skus.where(stock_identity_id: nil).find_each do |sku|
-      identity = StockIdentity.create!(
-        code: "sku:#{sku.code}"
-      )
+      identity = StockIdentity.create!(code: "sku:#{sku.code}")
 
       sku.update_columns(stock_identity_id: identity.id)
 
@@ -161,10 +131,6 @@ class SkuImportJob < ApplicationJob
       )
     end
   end
-
-  # =========================
-  # APPLY STOCK
-  # =========================
 
   def apply_stock_rows(stock_rows, batch)
     return empty_stock_stats if stock_rows.empty?
@@ -194,10 +160,7 @@ class SkuImportJob < ApplicationJob
           sku: sku,
           set_to: on_hand,
           idempotency_key: "sku_import:batch=#{batch.id}:sku=#{sku.code}:#{on_hand}",
-          meta: {
-            source: "sku_import",
-            batch_id: batch.id
-          }
+          meta: { source: "sku_import", batch_id: batch.id }
         )
 
         updated += 1
@@ -225,10 +188,6 @@ class SkuImportJob < ApplicationJob
     }
   end
 
-  # =========================
-  # BULK SYNC
-  # =========================
-
   def trigger_bulk_sync
     CleanupStaleJobsJob.enqueue_once!(reason: "sku_import")
     SystemAutoHealJob.enqueue_once!
@@ -241,10 +200,6 @@ class SkuImportJob < ApplicationJob
       }.to_json
     )
   end
-
-  # =========================
-  # HELPERS
-  # =========================
 
   def build_sku_attrs(row, code, now)
     {
