@@ -21,7 +21,7 @@ module StockSync
 
       skus =
         if @sku.stock_identity_id.present?
-          Sku.where(stock_identity_id: @sku.stock_identity_id).order(:id)
+          Sku.where(stock_identity_id: @sku.stock_identity_id)
         else
           Sku.where(id: @sku.id)
         end

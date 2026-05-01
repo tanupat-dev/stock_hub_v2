@@ -42,20 +42,10 @@ module Inventory
       end
 
       cutoff = Time.current - @fresh_within
-
-      mapping_cache = SkuMapping
-        .where(channel: @shop.channel, shop_id: @shop.id)
-        .includes(:sku)
-        .index_by { |m| m.external_variant_id.to_s.strip }
-
-      state_cache = ShopSkuSyncState
-        .where(shop_id: @shop.id)
-        .index_by(&:sku_id)
-
       MarketplaceItem
         .where(shop: @shop)
         .where("UPPER(status) = 'ACTIVATE'")
-        .find_each do |item|
+        .find_each(batch_size: 50) do |item|
           @scanned_activate += 1
 
           item_stale = item.synced_at.blank? || item.synced_at < cutoff
@@ -73,7 +63,10 @@ module Inventory
             next
           end
 
-          mapping = mapping_cache[variant_id]
+          mapping =
+            SkuMapping
+              .includes(:sku)
+              .find_by(channel: @shop.channel, shop_id: @shop.id, external_variant_id: variant_id)
           if mapping.nil?
             @unmapped += 1
             next
@@ -106,7 +99,7 @@ module Inventory
           @mismatched += 1
           @stale_mismatched += 1 if item_stale
 
-          state = state_cache[sku.id]
+          state = ShopSkuSyncState.find_by(shop_id: @shop.id, sku_id: sku.id)
 
           if state &&
              state.last_pushed_available.to_i == central &&

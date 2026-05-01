@@ -20,7 +20,7 @@ module StockSync
 
       skus =
         if root_sku.stock_identity_id.present?
-          Sku.where(stock_identity_id: root_sku.stock_identity_id).order(:id)
+          Sku.where(stock_identity_id: root_sku.stock_identity_id)
         else
           Sku.where(id: root_sku.id)
         end
