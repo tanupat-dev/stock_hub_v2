@@ -29,6 +29,7 @@ module Inventory
       @skipped_shop_disabled = 0
       @skipped_nil_available_stock = 0
       @skipped_push_limit = 0
+      @skipped_pending_duplicate = 0
     end
 
     def call!
@@ -174,6 +175,11 @@ module Inventory
         return
       end
 
+      if pending_push_inventory_job?(item.id)
+        @skipped_pending_duplicate += 1
+        return
+      end
+
       PushInventoryJob.perform_later(
         @shop.id,
         item.id,
@@ -182,6 +188,24 @@ module Inventory
       )
 
       @pushed += 1
+    end
+
+    def pending_push_inventory_job?(marketplace_item_id)
+      SolidQueue::Job
+        .where(class_name: "PushInventoryJob", finished_at: nil)
+        .where("arguments::text LIKE ?", "%#{marketplace_item_id}%")
+        .exists?
+    rescue => e
+      Rails.logger.warn(
+        {
+          event: "reconcile.pending_push_check_failed",
+          marketplace_item_id: marketplace_item_id,
+          err_class: e.class.name,
+          err_message: e.message
+        }.to_json
+      )
+
+      false
     end
 
     def result_payload
@@ -203,7 +227,8 @@ module Inventory
         skipped_rollout_blocked: @skipped_rollout_blocked,
         skipped_shop_disabled: @skipped_shop_disabled,
         skipped_nil_available_stock: @skipped_nil_available_stock,
-        skipped_push_limit: @skipped_push_limit
+        skipped_push_limit: @skipped_push_limit,
+        skipped_pending_duplicate: @skipped_pending_duplicate
       }
     end
 
