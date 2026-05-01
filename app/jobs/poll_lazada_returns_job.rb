@@ -20,8 +20,11 @@ class PollLazadaReturnsJob < ApplicationJob
   discard_on ActiveRecord::RecordNotFound
 
   FIRST_RUN_LOOKBACK_SECONDS = 3600
-  PAGE_SIZE = 100
   SAFETY_LAG_SECONDS = 120
+
+  MAX_WINDOW_SECONDS = 15.minutes.to_i
+  MAX_PAGES = 10
+  PAGE_SIZE = 50
 
   def perform(shop_id, since: nil, until_time: nil)
     started_at = Time.current
@@ -32,7 +35,7 @@ class PollLazadaReturnsJob < ApplicationJob
     return if shop.lazada_credential_id.nil?
 
     now = Time.current
-    window_end_ms = ((until_time || now).to_time.to_f * 1000).to_i - (SAFETY_LAG_SECONDS * 1000)
+    requested_window_end_ms = ((until_time || now).to_time.to_f * 1000).to_i - (SAFETY_LAG_SECONDS * 1000)
 
     cursor_ms =
       if since.present?
@@ -44,6 +47,8 @@ class PollLazadaReturnsJob < ApplicationJob
       end
 
     window_start_ms = [ cursor_ms - (SAFETY_LAG_SECONDS * 1000), 0 ].max
+    max_window_end_ms = window_start_ms + (MAX_WINDOW_SECONDS * 1000)
+    window_end_ms = [ requested_window_end_ms, max_window_end_ms ].min
     window_end_ms = [ window_end_ms, window_start_ms ].max
 
     if window_end_ms <= window_start_ms
@@ -51,15 +56,29 @@ class PollLazadaReturnsJob < ApplicationJob
         lazada_returns_last_polled_at: now,
         updated_at: Time.current
       )
-      return { ok: true, fetched: 0, pages: 0, cursor_written: cursor_ms / 1000 }
+
+      return {
+        ok: true,
+        fetched: 0,
+        pages: 0,
+        cursor_written: cursor_ms / 1000,
+        fully_drained: true,
+        reason: "empty_window"
+      }
     end
 
     page_no = 1
     pages = 0
     fetched = 0
     max_modified_seen_ms = window_start_ms
+    fully_drained = true
 
     loop do
+      if pages >= MAX_PAGES
+        fully_drained = false
+        break
+      end
+
       pages += 1
 
       resp = Marketplace::Lazada::Returns::Search.call!(
@@ -101,6 +120,9 @@ class PollLazadaReturnsJob < ApplicationJob
         end
 
         fetched += 1
+      ensure
+        detail = nil
+        raw_return = nil
       end
 
       Rails.logger.info(
@@ -109,18 +131,32 @@ class PollLazadaReturnsJob < ApplicationJob
           shop_id: shop.id,
           shop_code: shop.shop_code,
           page: page_no,
+          pages: pages,
           fetched: fetched,
           modified_from_ms: window_start_ms,
           modified_to_ms: window_end_ms,
-          max_modified_seen_ms: max_modified_seen_ms
+          max_modified_seen_ms: max_modified_seen_ms,
+          fully_drained: fully_drained
         }.to_json
       )
 
       break if items.size < PAGE_SIZE
+
       page_no += 1
+      sleep(rand * 0.3 + 0.2)
+    ensure
+      items = nil
+      resp = nil
     end
 
-    cursor_written = (fetched == 0 ? window_end_ms : max_modified_seen_ms) / 1000
+    cursor_written =
+      if fetched == 0
+        window_end_ms / 1000
+      elsif fully_drained
+        window_end_ms / 1000
+      else
+        cursor_ms / 1000
+      end
 
     shop.update_columns(
       lazada_returns_last_seen_update_time: cursor_written,
@@ -128,14 +164,21 @@ class PollLazadaReturnsJob < ApplicationJob
       updated_at: Time.current
     )
 
+    enqueue_next_window_if_needed(shop, requested_window_end_ms / 1000, cursor_written)
+
     Rails.logger.info(
       {
         event: "poll.lazada.returns.done",
         shop_id: shop.id,
         shop_code: shop.shop_code,
         fetched: fetched,
-        pages: page_no,
+        pages: pages,
         cursor_written: cursor_written,
+        max_modified_seen_ms: max_modified_seen_ms,
+        fully_drained: fully_drained,
+        max_window_seconds: MAX_WINDOW_SECONDS,
+        page_size: PAGE_SIZE,
+        max_pages: MAX_PAGES,
         duration_ms: ((Time.current - started_at) * 1000).round
       }.to_json
     )
@@ -144,8 +187,37 @@ class PollLazadaReturnsJob < ApplicationJob
       ok: true,
       shop_id: shop.id,
       fetched: fetched,
-      pages: page_no,
-      cursor_written: cursor_written
+      pages: pages,
+      cursor_written: cursor_written,
+      fully_drained: fully_drained
     }
+  end
+
+  private
+
+  def enqueue_next_window_if_needed(shop, requested_window_end_ts, cursor_written)
+    return if cursor_written >= requested_window_end_ts
+
+    self.class.set(wait: 10.seconds).perform_later(shop.id)
+
+    Rails.logger.info(
+      {
+        event: "poll.lazada.returns.next_window_enqueued",
+        shop_id: shop.id,
+        shop_code: shop.shop_code,
+        cursor_written: cursor_written,
+        requested_window_end_ts: requested_window_end_ts
+      }.to_json
+    )
+  rescue => e
+    Rails.logger.warn(
+      {
+        event: "poll.lazada.returns.next_window_enqueue_failed",
+        shop_id: shop.id,
+        shop_code: shop.shop_code,
+        err_class: e.class.name,
+        err_message: e.message
+      }.to_json
+    )
   end
 end

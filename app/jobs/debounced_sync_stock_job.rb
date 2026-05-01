@@ -28,6 +28,8 @@ class DebouncedSyncStockJob < ApplicationJob
   discard_on ActiveRecord::RecordNotFound
 
   def perform(sku_id)
+    @sku_id = sku_id
+
     sku = Sku.find(sku_id)
     req = StockSyncRequest.find_by!(sku_id: sku.id)
 
@@ -134,7 +136,15 @@ class DebouncedSyncStockJob < ApplicationJob
   private
 
   def enqueue_active_cleanup
-    CleanupStaleJobsJob.perform_later
+    result = CleanupStaleJobsJob.enqueue_once!(reason: "debounced_sync_stock_job")
+
+    Rails.logger.info(
+      {
+        event: "debounced_sync_stock_job.cleanup_enqueue",
+        sku_id: @sku_id,
+        enqueue_result: result
+      }.to_json
+    )
   rescue => e
     Rails.logger.warn(
       {

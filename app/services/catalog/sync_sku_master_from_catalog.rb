@@ -80,7 +80,13 @@ module Catalog
           .group_by { |r| r[:external_sku].to_s }
           .select { |_ext_sku, arr| arr.size > 1 }
 
-      duplicate_skus = dup_map.keys.sort
+      db_duplicate_skus = duplicate_activate_skus_from_db(candidates)
+
+      db_duplicate_skus.each do |ext_sku|
+        dup_map[ext_sku] ||= active_marketplace_rows_for_external_sku(ext_sku)
+      end
+
+      duplicate_skus = (dup_map.keys + db_duplicate_skus).uniq.sort
       stats[:duplicates_activate_sku_count] = duplicate_skus.size
       stats[:duplicates_activate_sku_all] = duplicate_skus
 
@@ -327,6 +333,38 @@ module Catalog
           { external_sku: ext_sku, external_variant_id: ext_vid, status: st }
         end
       end
+    end
+
+    def duplicate_activate_skus_from_db(candidates)
+      external_skus =
+        Array(candidates)
+          .map { |r| r[:external_sku].to_s.strip }
+          .reject(&:blank?)
+          .uniq
+
+      return [] if external_skus.empty?
+
+      MarketplaceItem
+        .where(shop_id: @shop.id, external_sku: external_skus)
+        .where("UPPER(status) = 'ACTIVATE'")
+        .group(:external_sku)
+        .having("COUNT(*) > 1")
+        .pluck(:external_sku)
+        .map(&:to_s)
+    end
+
+    def active_marketplace_rows_for_external_sku(external_sku)
+      MarketplaceItem
+        .where(shop_id: @shop.id, external_sku: external_sku.to_s)
+        .where("UPPER(status) = 'ACTIVATE'")
+        .select(:external_sku, :external_variant_id, :status)
+        .map do |item|
+          {
+            external_sku: item.external_sku.to_s.strip.presence,
+            external_variant_id: item.external_variant_id.to_s.strip.presence,
+            status: item.status.to_s.strip.presence
+          }
+        end
     end
 
     def freeze_sku_if_duplicate_activate!(sku:, external_sku:, rows:)

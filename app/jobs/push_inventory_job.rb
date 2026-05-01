@@ -170,7 +170,23 @@ class PushInventoryJob < ApplicationJob
   end
 
   def enqueue_targeted_refresh(shop, variant_id)
-    RefreshMarketplaceItemJob.set(wait: 10.seconds).perform_later(shop.id, variant_id)
+    result = RefreshMarketplaceItemJob.enqueue_once!(
+      shop.id,
+      variant_id,
+      wait: 30.seconds,
+      reason: "push_inventory_job"
+    )
+
+    Rails.logger.info(
+      {
+        event: "push_inventory_job.refresh_enqueue",
+        shop_id: shop.id,
+        shop_code: shop.shop_code,
+        channel: shop.channel,
+        external_variant_id: variant_id,
+        enqueue_result: result
+      }.to_json
+    )
   rescue => e
     Rails.logger.warn(
       {
@@ -186,7 +202,14 @@ class PushInventoryJob < ApplicationJob
   end
 
   def enqueue_active_cleanup
-    CleanupStaleJobsJob.perform_later
+    result = CleanupStaleJobsJob.enqueue_once!(reason: "push_inventory_job")
+
+    Rails.logger.info(
+      {
+        event: "push_inventory_job.cleanup_enqueue",
+        enqueue_result: result
+      }.to_json
+    )
   rescue => e
     Rails.logger.warn(
       {

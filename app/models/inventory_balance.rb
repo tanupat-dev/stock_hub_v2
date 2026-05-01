@@ -34,29 +34,30 @@ class InventoryBalance < ApplicationRecord
   def enqueue_stock_sync_if_relevant
     return if ENV["DISABLE_JOBS"] == "1"
     return unless solid_queue_ready?
+    return unless stock_sync_relevant_change?
 
-    return unless previous_changes.key?("on_hand") ||
+    root_sku = stock_sync_root_sku
+    return if root_sku.nil?
+    return unless StockSync::Rollout.sku_allowed?(root_sku.code)
+
+    StockSync::RequestDebouncer.call!(
+      sku: root_sku,
+      reason: "inventory_balance_change"
+    )
+  end
+
+  def stock_sync_relevant_change?
+    previous_changes.key?("on_hand") ||
       previous_changes.key?("reserved") ||
       previous_changes.key?("frozen_at") ||
       previous_changes.key?("freeze_reason")
-
-    sync_skus.find_each do |sku|
-      next unless StockSync::Rollout.sku_allowed?(sku.code)
-
-      StockSync::RequestDebouncer.call!(
-        sku: sku,
-        reason: "inventory_balance_change"
-      )
-    end
   end
 
-  def sync_skus
+  def stock_sync_root_sku
     if stock_identity_id.present?
-      Sku.where(stock_identity_id: stock_identity_id)
+      Sku.where(stock_identity_id: stock_identity_id).order(:id).first
     elsif sku_id.present?
-      Sku.where(id: sku_id)
-    else
-      Sku.none
+      Sku.find_by(id: sku_id)
     end
   end
 

@@ -73,8 +73,7 @@ class SystemAutoHealJob < ApplicationJob
   private
 
   def enqueue_cleanup_stale_jobs!
-    CleanupStaleJobsJob.perform_later
-    true
+    CleanupStaleJobsJob.enqueue_once!(reason: "system_auto_heal_job")
   end
 
   def enqueue_reconcile!(shop_id)

@@ -1,10 +1,10 @@
-# app/services/inventory/reconcile_shop.rb
 # frozen_string_literal: true
 
 module Inventory
   class ReconcileShop
     DEFAULT_FRESH_WITHIN = 6.hours
     DEFAULT_PUSH_LIMIT = 100
+    BATCH_SIZE = 200
 
     def self.call!(shop:, fresh_within: DEFAULT_FRESH_WITHIN, push_limit: DEFAULT_PUSH_LIMIT)
       new(shop, fresh_within:, push_limit:).call!
@@ -42,85 +42,15 @@ module Inventory
       end
 
       cutoff = Time.current - @fresh_within
+
       MarketplaceItem
         .where(shop: @shop)
         .where("UPPER(status) = 'ACTIVATE'")
-        .find_each(batch_size: 50) do |item|
-          @scanned_activate += 1
-
-          item_stale = item.synced_at.blank? || item.synced_at < cutoff
-          @stale_items += 1 if item_stale
-
-          if item.available_stock.nil?
-            @skipped_nil_available_stock += 1
-            next
-          end
-
-          variant_id = item.external_variant_id.to_s.strip
-          if variant_id.blank?
-            @skipped_missing_variant += 1
-            @unmapped += 1
-            next
-          end
-
-          mapping =
-            SkuMapping
-              .includes(:sku)
-              .find_by(channel: @shop.channel, shop_id: @shop.id, external_variant_id: variant_id)
-          if mapping.nil?
-            @unmapped += 1
-            next
-          end
-
-          sku = mapping.sku
-          next if sku.nil?
-
-          if sku.inventory_balance.nil?
-            @skipped_missing_balance += 1
-            next
-          end
-
-          rollout_skip_reason = StockSync::Rollout.skip_reason(shop: @shop, sku: sku)
-          if rollout_skip_reason.present?
-            case rollout_skip_reason
-            when "shop_sync_disabled", "shop_inactive", "global_sync_disabled"
-              @skipped_shop_disabled += 1
-            when "rollout_prefix_blocked"
-              @skipped_rollout_blocked += 1
-            end
-            next
-          end
-
-          central = sku.online_available.to_i
-          marketplace = item.available_stock.to_i
-
-          next if central == marketplace
-
-          @mismatched += 1
-          @stale_mismatched += 1 if item_stale
-
-          state = ShopSkuSyncState.find_by(shop_id: @shop.id, sku_id: sku.id)
-
-          if state &&
-             state.last_pushed_available.to_i == central &&
-             marketplace == central
-            @skipped_no_change_state += 1
-            next
-          end
-
-          if @pushed >= @push_limit
-            @skipped_push_limit += 1
-            next
-          end
-
-          PushInventoryJob.perform_later(
-            @shop.id,
-            item.id,
-            central,
-            reason: "reconcile_mismatch"
-          )
-
-          @pushed += 1
+        .in_batches(of: BATCH_SIZE) do |relation|
+          items = relation.to_a
+          reconcile_batch!(items, cutoff: cutoff)
+        ensure
+          items = nil
         end
 
       InventoryReconcileRun.create!(
@@ -131,6 +61,130 @@ module Inventory
         ran_at: Time.current
       )
 
+      result_payload
+    end
+
+    private
+
+    def reconcile_batch!(items, cutoff:)
+      variant_ids =
+        items
+          .map { |item| item.external_variant_id.to_s.strip }
+          .reject(&:blank?)
+          .uniq
+
+      mappings_by_variant =
+        if variant_ids.any?
+          SkuMapping
+            .where(channel: @shop.channel, shop_id: @shop.id, external_variant_id: variant_ids)
+            .includes(sku: :inventory_balance)
+            .index_by { |mapping| mapping.external_variant_id.to_s }
+        else
+          {}
+        end
+
+      sku_ids =
+        mappings_by_variant
+          .values
+          .map(&:sku_id)
+          .compact
+          .uniq
+
+      states_by_sku_id =
+        if sku_ids.any?
+          ShopSkuSyncState
+            .where(shop_id: @shop.id, sku_id: sku_ids)
+            .index_by(&:sku_id)
+        else
+          {}
+        end
+
+      items.each do |item|
+        reconcile_item!(
+          item,
+          cutoff: cutoff,
+          mappings_by_variant: mappings_by_variant,
+          states_by_sku_id: states_by_sku_id
+        )
+      end
+    end
+
+    def reconcile_item!(item, cutoff:, mappings_by_variant:, states_by_sku_id:)
+      @scanned_activate += 1
+
+      item_stale = item.synced_at.blank? || item.synced_at < cutoff
+      @stale_items += 1 if item_stale
+
+      if item.available_stock.nil?
+        @skipped_nil_available_stock += 1
+        return
+      end
+
+      variant_id = item.external_variant_id.to_s.strip
+      if variant_id.blank?
+        @skipped_missing_variant += 1
+        @unmapped += 1
+        return
+      end
+
+      mapping = mappings_by_variant[variant_id]
+      if mapping.nil?
+        @unmapped += 1
+        return
+      end
+
+      sku = mapping.sku
+      return if sku.nil?
+
+      if sku.inventory_balance.nil?
+        @skipped_missing_balance += 1
+        return
+      end
+
+      rollout_skip_reason = StockSync::Rollout.skip_reason(shop: @shop, sku: sku)
+      if rollout_skip_reason.present?
+        case rollout_skip_reason
+        when "shop_sync_disabled", "shop_inactive", "global_sync_disabled"
+          @skipped_shop_disabled += 1
+        when "rollout_prefix_blocked"
+          @skipped_rollout_blocked += 1
+        end
+        return
+      end
+
+      central = sku.online_available.to_i
+      marketplace = item.available_stock.to_i
+
+      return if central == marketplace
+
+      @mismatched += 1
+      @stale_mismatched += 1 if item_stale
+
+      state = states_by_sku_id[sku.id]
+
+      if state &&
+         state.last_pushed_available.to_i == central &&
+         marketplace == central
+        @skipped_no_change_state += 1
+        return
+      end
+
+      if @pushed >= @push_limit
+        @skipped_push_limit += 1
+        return
+      end
+
+      PushInventoryJob.perform_later(
+        @shop.id,
+        item.id,
+        central,
+        reason: "reconcile_mismatch"
+      )
+
+      @pushed += 1
+    end
+
+    def result_payload
       {
         ok: true,
         shop_id: @shop.id,
@@ -152,8 +206,6 @@ module Inventory
         skipped_push_limit: @skipped_push_limit
       }
     end
-
-    private
 
     def supported_shop?
       return false unless @shop.active?

@@ -4,12 +4,64 @@ class CleanupStaleJobsJob < ApplicationJob
   queue_as :default
 
   STALE_AFTER = 1.hour
+  ENQUEUE_ONCE_WINDOW = 5.minutes
+
   TARGET_JOB_CLASSES = %w[
     DebouncedSyncStockJob
     PushInventoryJob
     RefreshMarketplaceItemJob
     InventoryReconcileJob
   ].freeze
+
+  class << self
+    def enqueue_once!(reason: nil, window: ENQUEUE_ONCE_WINDOW)
+      return :skipped if recently_enqueued?(window)
+
+      perform_later
+      mark_enqueued!(window)
+
+      Rails.logger.info(
+        {
+          event: "cleanup_stale_jobs_job.enqueue_once",
+          result: "enqueued",
+          reason: reason,
+          window_seconds: window.to_i
+        }.to_json
+      )
+
+      :enqueued
+    rescue => e
+      Rails.logger.warn(
+        {
+          event: "cleanup_stale_jobs_job.enqueue_once_fail",
+          reason: reason,
+          err_class: e.class.name,
+          err_message: e.message
+        }.to_json
+      )
+
+      :failed
+    end
+
+    private
+
+    def recently_enqueued?(window)
+      ts = Rails.cache.read(cache_key)
+      ts.present? && ts > window.ago
+    end
+
+    def mark_enqueued!(window)
+      Rails.cache.write(
+        cache_key,
+        Time.current,
+        expires_in: window
+      )
+    end
+
+    def cache_key
+      "cleanup_stale_jobs_job:enqueue_once"
+    end
+  end
 
   def perform
     cutoff = Time.current - STALE_AFTER

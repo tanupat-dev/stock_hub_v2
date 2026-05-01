@@ -14,11 +14,23 @@ class PollLazadaCatalogJob < ApplicationJob
 
   DEFAULT_LIMIT = 20
   DEFAULT_MAX_PAGES = 200
+  PER_RUN_MAX_PAGES = 10
+
   PAGE_SLEEP_SECONDS = 3.0
   RATE_LIMIT_SLEEP_SECONDS = 3.0
   MAX_RATE_LIMIT_RETRIES_PER_PAGE = 6
 
-  def perform(shop_id, update_after: nil, filter: "all", limit: DEFAULT_LIMIT, max_pages: DEFAULT_MAX_PAGES, full: false)
+  def perform(
+    shop_id,
+    update_after: nil,
+    filter: "all",
+    limit: DEFAULT_LIMIT,
+    max_pages: DEFAULT_MAX_PAGES,
+    full: false,
+    offset: 0,
+    fetched_products_total: 0,
+    upserted_total: 0
+  )
     shop = Shop.find(shop_id)
 
     return unless shop.active?
@@ -28,12 +40,14 @@ class PollLazadaCatalogJob < ApplicationJob
     started_at = Time.current
     limit = normalize_limit(limit)
     max_pages = normalize_max_pages(max_pages)
+    offset = offset.to_i
+    fetched_products_total = fetched_products_total.to_i
+    upserted_total = upserted_total.to_i
 
-    offset = 0
     pages = 0
-    total_upserted = 0
     total_products = nil
-    fetched_products = 0
+    fetched_products_this_run = 0
+    upserted_this_run = 0
 
     effective_update_after =
       if full
@@ -46,6 +60,7 @@ class PollLazadaCatalogJob < ApplicationJob
 
     loop do
       break if pages >= max_pages
+      break if pages >= PER_RUN_MAX_PAGES
 
       rate_limit_retries = 0
       resp = nil
@@ -87,14 +102,17 @@ class PollLazadaCatalogJob < ApplicationJob
       break if rows.empty?
 
       pages += 1
-      fetched_products += rows.size
+      fetched_products_this_run += rows.size
+      fetched_products_total += rows.size
 
       upsert_result = Catalog::UpsertLazadaMarketplaceItems.call!(
         shop: shop,
         products: rows
       )
 
-      total_upserted += upsert_result[:upserted].to_i
+      upserted_now = upsert_result[:upserted].to_i
+      upserted_this_run += upserted_now
+      upserted_total += upserted_now
       offset += rows.size
 
       Rails.logger.info(
@@ -104,10 +122,12 @@ class PollLazadaCatalogJob < ApplicationJob
           shop_code: shop.shop_code,
           page: pages,
           offset: offset,
-          fetched_products: fetched_products,
+          fetched_products_this_run: fetched_products_this_run,
+          fetched_products_total: fetched_products_total,
           total_products: total_products,
           page_size: rows.size,
-          upserted_total: total_upserted,
+          upserted_this_run: upserted_this_run,
+          upserted_total: upserted_total,
           full: full,
           update_after: effective_update_after
         }.to_json
@@ -117,9 +137,16 @@ class PollLazadaCatalogJob < ApplicationJob
       break if rows.size < limit
 
       sleep PAGE_SLEEP_SECONDS
+    ensure
+      rows = nil
+      resp = nil
     end
 
-    truncated = total_products.present? && fetched_products < total_products.to_i
+    truncated = total_products.present? && offset < total_products.to_i
+    hit_run_page_limit = pages >= PER_RUN_MAX_PAGES
+    hit_requested_page_limit = pages >= max_pages
+    should_continue = truncated && hit_run_page_limit && !hit_requested_page_limit
+
     now = Time.current
 
     shop.update_columns(
@@ -130,21 +157,25 @@ class PollLazadaCatalogJob < ApplicationJob
       updated_at: now
     )
 
-    sync_result = Catalog::SyncSkuMasterFromCatalog.call!(
-      shop: shop,
-      match_by: :code,
-      enqueue_sync_stock: true,
-      dry_run: false
-    )
-
-    Rails.logger.info(
-      {
-        event: "poll.lazada.catalog.sync_sku_master.done",
-        shop_id: shop.id,
-        shop_code: shop.shop_code,
-        result: sync_result
-      }.to_json
-    )
+    if should_continue
+      self.class.set(wait: 5.seconds).perform_later(
+        shop.id,
+        update_after: update_after,
+        filter: filter,
+        limit: limit,
+        max_pages: max_pages - pages,
+        full: full,
+        offset: offset,
+        fetched_products_total: fetched_products_total,
+        upserted_total: upserted_total
+      )
+    else
+      SyncSkuMasterJob.perform_later(
+        shop.id,
+        enqueue_sync_stock: true,
+        dry_run: false
+      )
+    end
 
     Rails.logger.info(
       {
@@ -156,10 +187,15 @@ class PollLazadaCatalogJob < ApplicationJob
         full: full,
         pages: pages,
         limit: limit,
-        fetched_products: fetched_products,
-        upserted: total_upserted,
+        offset: offset,
+        fetched_products_this_run: fetched_products_this_run,
+        fetched_products_total: fetched_products_total,
+        upserted_this_run: upserted_this_run,
+        upserted_total: upserted_total,
         total_products: total_products,
         truncated: truncated,
+        should_continue: should_continue,
+        next_step: should_continue ? "enqueue_next_catalog_chunk" : "enqueue_sync_sku_master",
         duration_ms: ((Time.current - started_at) * 1000).round
       }.to_json
     )
@@ -169,12 +205,15 @@ class PollLazadaCatalogJob < ApplicationJob
       shop_id: shop.id,
       pages: pages,
       limit: limit,
-      fetched_products: fetched_products,
-      upserted: total_upserted,
+      offset: offset,
+      fetched_products_this_run: fetched_products_this_run,
+      fetched_products_total: fetched_products_total,
+      upserted_this_run: upserted_this_run,
+      upserted_total: upserted_total,
       total_products: total_products,
       truncated: truncated,
       full: full,
-      sync_sku_master: sync_result
+      should_continue: should_continue
     }
   rescue => e
     now = Time.current
@@ -194,8 +233,8 @@ class PollLazadaCatalogJob < ApplicationJob
         offset: offset,
         pages: pages,
         limit: limit,
-        upserted_before_fail: total_upserted,
-        fetched_products_before_fail: fetched_products,
+        upserted_before_fail: upserted_total,
+        fetched_products_before_fail: fetched_products_total,
         err_class: e.class.name,
         err_message: e.message
       }.to_json
@@ -209,7 +248,7 @@ class PollLazadaCatalogJob < ApplicationJob
   def normalize_limit(limit)
     n = limit.to_i
     n = DEFAULT_LIMIT if n <= 0
-    n = 20 if n > 20
+    n = DEFAULT_LIMIT if n > DEFAULT_LIMIT
     n
   end
 
