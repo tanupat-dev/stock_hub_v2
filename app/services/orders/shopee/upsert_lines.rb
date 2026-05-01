@@ -20,10 +20,18 @@ module Orders
         sku_codes = items.map { |li| li["sku_reference"].to_s.strip }.reject(&:blank?).uniq
         skus_by_code = Sku.where(code: sku_codes).index_by(&:code)
 
-        rows = items.map do |li|
+        rows = items.map.with_index do |li, index|
           sku_code = li["sku_reference"].to_s.strip
           sku = skus_by_code[sku_code]
-          external_line_id = li["id"].presence&.to_s || "#{@order.external_order_id}:#{sku_code}"
+
+          base_external_line_id =
+            li["id"].presence&.to_s ||
+            "#{@order.external_order_id}:#{sku_code}"
+
+          external_line_id = deduped_external_line_id(
+            base_external_line_id,
+            index
+          )
 
           {
             order_id: @order.id,
@@ -49,6 +57,12 @@ module Orders
         )
 
         rows.size
+      end
+
+      private
+
+      def deduped_external_line_id(base_external_line_id, index)
+        "#{base_external_line_id}:row#{index + 1}"
       end
     end
   end
