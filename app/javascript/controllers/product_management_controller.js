@@ -566,6 +566,8 @@ export default class extends Controller {
                 data-sku-id="${sku.id}">
                 Open Ledger
               </button>
+
+              ${this.renderArchiveButton(sku)}
             </div>
           </div>
         </td>
@@ -653,6 +655,115 @@ export default class extends Controller {
     }
 
     return `<span class="ui-pill ui-pill--channel is-no">✕</span>`;
+  }
+
+  renderArchiveButton(sku) {
+    if (sku.active) {
+      return `
+      <button
+        type="button"
+        class="ui-pill ui-pill--button is-danger"
+        data-action="click->product-management#archiveSku"
+        data-sku-id="${sku.id}">
+        Archive
+      </button>
+    `;
+    }
+
+    return `
+    <button
+      type="button"
+      class="ui-pill ui-pill--button"
+      data-action="click->product-management#unarchiveSku"
+      data-sku-id="${sku.id}">
+      Unarchive
+    </button>
+  `;
+  }
+
+  async archiveSku(event) {
+    const skuId = Number(event.currentTarget.dataset.skuId);
+    const sku = this.currentSkus.find((item) => Number(item.id) === skuId);
+
+    if (!sku) return;
+
+    if (
+      !window.confirm(
+        `Archive SKU นี้?\n\n${sku.code}\n\nหลัง archive จะไม่โชว์ในหน้า default และ dropdown`,
+      )
+    ) {
+      return;
+    }
+
+    const button = event.currentTarget;
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "Archiving...";
+
+    try {
+      const response = await fetch(`/ops/products/${skuId}/archive`, {
+        method: "PATCH",
+        headers: this.jsonHeaders({
+          "Content-Type": "application/json",
+          "X-CSRF-Token": this.csrfToken(),
+        }),
+      });
+
+      const data = await this.parseJsonResponse(
+        response,
+        `/ops/products/${skuId}/archive`,
+      );
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Archive failed");
+      }
+
+      await this.refreshAll();
+    } catch (error) {
+      console.error("archiveSku error", error);
+      window.alert(error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
+  async unarchiveSku(event) {
+    const skuId = Number(event.currentTarget.dataset.skuId);
+
+    const button = event.currentTarget;
+    const originalText = button.textContent;
+
+    button.disabled = true;
+    button.textContent = "Unarchiving...";
+
+    try {
+      const response = await fetch(`/ops/products/${skuId}/unarchive`, {
+        method: "PATCH",
+        headers: this.jsonHeaders({
+          "Content-Type": "application/json",
+          "X-CSRF-Token": this.csrfToken(),
+        }),
+      });
+
+      const data = await this.parseJsonResponse(
+        response,
+        `/ops/products/${skuId}/unarchive`,
+      );
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Unarchive failed");
+      }
+
+      await this.refreshAll();
+    } catch (error) {
+      console.error("unarchiveSku error", error);
+      window.alert(error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
   }
 
   rowClassNames(sku) {

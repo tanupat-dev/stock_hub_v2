@@ -8,6 +8,7 @@ module Ops
 
     def export_skus
       skus = Sku
+        .where(active: true)
         .includes(:inventory_balance)
         .order(:code)
 
@@ -25,6 +26,54 @@ module Ops
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         disposition: "attachment"
       )
+    end
+
+    def archive
+      sku = Sku.find(params[:id])
+
+      sku.update!(
+        active: false,
+        archived_at: Time.current
+      )
+
+      Rails.logger.info(
+        {
+          event: "ops.products.archive",
+          sku_id: sku.id,
+          sku_code: sku.code,
+          request_id: request.request_id
+        }.to_json
+      )
+
+      render json: { ok: true }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "SKU not found" }, status: :not_found
+    rescue => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
+    end
+
+    def unarchive
+      sku = Sku.find(params[:id])
+
+      sku.update!(
+        active: true,
+        archived_at: nil
+      )
+
+      Rails.logger.info(
+        {
+          event: "ops.products.unarchive",
+          sku_id: sku.id,
+          sku_code: sku.code,
+          request_id: request.request_id
+        }.to_json
+      )
+
+      render json: { ok: true }
+    rescue ActiveRecord::RecordNotFound
+      render json: { ok: false, error: "SKU not found" }, status: :not_found
+    rescue => e
+      render json: { ok: false, error: e.message }, status: :unprocessable_entity
     end
   end
 end

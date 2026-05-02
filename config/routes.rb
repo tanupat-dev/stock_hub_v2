@@ -33,6 +33,11 @@ Rails.application.routes.draw do
     resources :return_shipments, only: [ :index, :show ]
 
     resources :products, only: [] do
+      member do
+        patch :archive
+        patch :unarchive
+      end
+
       collection do
         get :export_skus
       end
