@@ -3,6 +3,8 @@
 module Orders
   module Shopee
     class ApplyPolicy
+      SOURCE = "shopee_import"
+
       def self.call!(order:, raw_order:, previous_status:)
         new(order, raw_order, previous_status).call!
       end
@@ -16,28 +18,36 @@ module Orders
       def call!
         status = @raw["status"].to_s
 
-        action =
-          if Orders::StatusTransitionGuard.should_reserve?(
-              previous_status: @previous_status,
-              current_status: status
-            )
-            :reserve
-          elsif Orders::StatusTransitionGuard.should_commit?(
-                  previous_status: @previous_status,
-                  current_status: status
-                )
-            :commit
-          elsif Orders::StatusTransitionGuard.should_release?(
-                  previous_status: @previous_status,
-                  current_status: status
-                )
-            :release
-          else
-            nil
-          end
+        action = transition_action(status)
+        action ||= fallback_action(status)
 
-        # ✅ NEW: handle cancelled after commit
         if action.nil?
+          Returns::CreateFromCancelledAfterCommit.call!(
+            order: @order,
+            previous_status: @previous_status,
+            current_status: status,
+            source: "shopee"
+          )
+
+          return noop_payload(status)
+        end
+
+        if action == :commit && fallback_commit?(status) && !Orders::OpenReserve.commit_safe?(@order)
+          log_repair_required(status)
+
+          return {
+            ok: true,
+            action: nil,
+            reason: "commit_would_make_on_hand_negative_repair_required",
+            status: status,
+            previous_status: @previous_status,
+            open_reserve: Orders::OpenReserve.summary(@order)
+          }
+        end
+
+        result = apply!(action, status)
+
+        if action == :commit && status == "CANCELLED"
           Returns::CreateFromCancelledAfterCommit.call!(
             order: @order,
             previous_status: @previous_status,
@@ -46,23 +56,48 @@ module Orders
           )
         end
 
-        return noop_payload(status) if action.nil?
-
-        Orders::ApplyInventoryPolicy.call!(
-          order: @order,
-          action: action,
-          idempotency_prefix: "shopee:order:#{@order.external_order_id}",
-          meta: {
-            source: "shopee_import",
-            status: status,
-            previous_status: @previous_status
-          }
-        )
+        result
       end
 
       private
 
-      def apply!(action)
+      def transition_action(status)
+        if Orders::StatusTransitionGuard.should_reserve?(
+            previous_status: @previous_status,
+            current_status: status
+          )
+          :reserve
+        elsif Orders::StatusTransitionGuard.should_commit?(
+                previous_status: @previous_status,
+                current_status: status
+              )
+          :commit
+        elsif Orders::StatusTransitionGuard.should_release?(
+                previous_status: @previous_status,
+                current_status: status
+              )
+          :release
+        end
+      end
+
+      def fallback_action(status)
+        return nil unless Orders::OpenReserve.exists?(@order)
+
+        Orders::StatusTransitionGuard.fallback_action_for_open_reserve(
+          previous_status: @previous_status,
+          current_status: status
+        )
+      end
+
+      def fallback_commit?(status)
+        Orders::OpenReserve.exists?(@order) &&
+          Orders::StatusTransitionGuard.fallback_action_for_open_reserve(
+            previous_status: @previous_status,
+            current_status: status
+          ) == :commit
+      end
+
+      def apply!(action, status)
         prefix = Orders::Shopee::Idempotency.policy_prefix(@order.external_order_id)
         Orders::Shopee::Idempotency.validate_policy_prefix!(prefix)
 
@@ -71,12 +106,28 @@ module Orders
           action: action,
           idempotency_prefix: prefix,
           meta: {
-            source: "shopee_import",
-            status: @raw["status"],
+            source: SOURCE,
+            status: status,
             previous_status: @previous_status,
             ordered_at: @raw["ordered_at"],
             tracking_number: @raw["tracking_number"]
           }
+        )
+      end
+
+      def log_repair_required(status)
+        Rails.logger.warn(
+          {
+            event: "orders.apply_policy.repair_required",
+            reason: "commit_would_make_on_hand_negative",
+            channel: @order.channel,
+            shop_id: @order.shop_id,
+            order_id: @order.id,
+            external_order_id: @order.external_order_id,
+            previous_status: @previous_status,
+            current_status: status,
+            open_reserve: Orders::OpenReserve.summary(@order)
+          }.to_json
         )
       end
 
