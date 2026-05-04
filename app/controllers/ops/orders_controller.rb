@@ -321,6 +321,12 @@ module Ops
       when "lazada"
         return payload["created_at"] if payload["created_at"].present?
       when "shopee"
+        return payload["ordered_at"].iso8601 if payload["ordered_at"].respond_to?(:iso8601)
+        return payload["ordered_at"] if payload["ordered_at"].present?
+
+        ts = payload["ordered_at_ts"].to_i
+        return Time.at(ts).iso8601 if ts.positive?
+
         return payload["create_time"] if payload["create_time"].present?
       end
 
