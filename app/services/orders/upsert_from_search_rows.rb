@@ -39,7 +39,7 @@ module Orders
       external_ids = @rows.map { |r| r["id"].to_s }.reject(&:blank?).uniq
       existing =
         Order.where(channel: "tiktok", shop_id: @shop.id, external_order_id: external_ids)
-             .index_by(&:external_order_id)
+            .index_by(&:external_order_id)
 
       @rows.each do |r|
         external_order_id = r["id"].to_s
@@ -51,6 +51,29 @@ module Orders
         order = existing[external_order_id]
         prev_status = order&.status
         prev_update_time = order&.updated_time_external.to_i
+
+        skip_reason = Orders::StatusUpdateGuard.skip_reason(
+          previous_status: prev_status,
+          incoming_status: incoming_status,
+          previous_update_time: prev_update_time,
+          incoming_update_time: incoming_update_time,
+          compare_update_time: true
+        )
+
+        if skip_reason.present?
+          Orders::StatusUpdateGuard.log_skip!(
+            channel: "tiktok",
+            shop_id: @shop.id,
+            external_order_id: external_order_id,
+            previous_status: prev_status,
+            incoming_status: incoming_status,
+            previous_update_time: prev_update_time,
+            incoming_update_time: incoming_update_time,
+            reason: skip_reason
+          )
+
+          next
+        end
 
         payload = r.merge("status" => incoming_status)
 
@@ -64,7 +87,7 @@ module Orders
           incoming_update_time > prev_update_time ||
           mapping_changed
 
-        apply_inventory!(order, incoming_status, prev_status) if should_apply
+        apply_inventory!(order, payload, prev_status) if should_apply
       end
 
       @rows.size
@@ -186,48 +209,11 @@ module Orders
       mapping_changed
     end
 
-    def apply_inventory!(order, status, previous_status)
-      action =
-        if Orders::StatusTransitionGuard.should_reserve?(
-            previous_status: previous_status,
-            current_status: status
-          )
-          :reserve
-        elsif Orders::StatusTransitionGuard.should_commit?(
-                previous_status: previous_status,
-                current_status: status
-              )
-          :commit
-        elsif Orders::StatusTransitionGuard.should_release?(
-                previous_status: previous_status,
-                current_status: status
-              )
-          :release
-        else
-          :noop
-        end
-
-      if action == :noop
-        Returns::CreateFromCancelledAfterCommit.call!(
-          order: order,
-          previous_status: previous_status,
-          current_status: status,
-          source: "tiktok_poll_search_rows"
-        )
-        return
-      end
-
-      Orders::ApplyInventoryPolicy.call!(
+    def apply_inventory!(order, payload, previous_status)
+      Orders::Tiktok::ApplyPolicy.call!(
         order: order,
-        action: action,
-        idempotency_prefix: "tiktok:order:#{order.external_order_id}",
-        meta: {
-          source: "tiktok_poll",
-          shop_id: @shop.id,
-          shop_code: @shop.shop_code,
-          status_marketplace: status,
-          previous_status: previous_status
-        }
+        raw_order: payload,
+        previous_status: previous_status
       )
     end
 

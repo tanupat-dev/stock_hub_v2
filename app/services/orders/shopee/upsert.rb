@@ -22,8 +22,32 @@ module Orders
         previous_status = nil
 
         Order.transaction do
-          existing = Order.find_by(channel: "shopee", shop_id: @shop.id, external_order_id: external_order_id)
+          existing = Order.find_by(
+            channel: "shopee",
+            shop_id: @shop.id,
+            external_order_id: external_order_id
+          )
+
           previous_status = existing&.status
+
+          skip_reason = Orders::StatusUpdateGuard.skip_reason(
+            previous_status: previous_status,
+            incoming_status: status,
+            compare_update_time: false
+          )
+
+          if skip_reason.present?
+            Orders::StatusUpdateGuard.log_skip!(
+              channel: "shopee",
+              shop_id: @shop.id,
+              external_order_id: external_order_id,
+              previous_status: previous_status,
+              incoming_status: status,
+              reason: skip_reason
+            )
+
+            return existing
+          end
 
           Order.upsert(
             {
