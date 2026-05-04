@@ -6,7 +6,9 @@ module Ops
     def index
       @active_ops_nav = :orders
 
-      scope = ReturnShipment.includes(:shop, :order, :return_shipment_lines).order(updated_at: :desc, id: :desc)
+      scope = ReturnShipment
+                .includes(:shop, :order, :return_scans, :return_shipment_lines)
+                .order(updated_at: :desc, id: :desc)
 
       if params[:q].present?
         q = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)}%"
@@ -121,6 +123,8 @@ module Ops
     end
 
     def serialize_shipment(shipment)
+      returned_scan_at = latest_return_scan_at(shipment)
+
       {
         id: shipment.id,
         channel: shipment.channel,
@@ -138,7 +142,15 @@ module Ops
         requested_at: shipment.requested_at,
         return_carrier_method: shipment.return_carrier_method,
         return_delivery_status: shipment.return_delivery_status,
+
+        # Marketplace delivered/received timestamp. Keep it for audit/debug only.
+        # Do not use this as the store returned date in the UI.
         returned_delivered_at: shipment.returned_delivered_at,
+
+        # Actual in-store returned timestamp from barcode scanning.
+        returned_at: returned_scan_at,
+        returned_scan_at: returned_scan_at,
+
         total_qty_requested: shipment.total_qty_requested,
         total_qty_scanned: shipment.total_qty_scanned,
         line_count: shipment.return_shipment_lines.size,
@@ -182,6 +194,14 @@ module Ops
           }
         end
       )
+    end
+
+    def latest_return_scan_at(shipment)
+      if shipment.association(:return_scans).loaded?
+        shipment.return_scans.map(&:scanned_at).compact.max
+      else
+        shipment.return_scans.maximum(:scanned_at)
+      end
     end
 
     def shop_ids_for_group(group_key)

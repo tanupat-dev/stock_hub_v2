@@ -263,9 +263,11 @@ export default class extends Controller {
     const shipmentHint = this.shipmentHintFor(r);
     const trackingText = this.trackingTextFor(r);
     const requestedAt = this.formatDateTime(r.requested_at);
-    const returnedAt = r.returned_delivered_at
-      ? this.formatDateTime(r.returned_delivered_at)
-      : "";
+
+    // Use actual in-store barcode scan time only.
+    // Do not use returned_delivered_at because that comes from marketplace delivery/return status.
+    const returnedAt = r.returned_at ? this.formatDateTime(r.returned_at) : "";
+
     const statusClass = this.statusClassFor(r.derived_status_store);
     const isExpanded = String(this.expandedShipmentId) === String(r.id);
 
