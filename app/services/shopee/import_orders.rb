@@ -212,7 +212,8 @@ module Shopee
 
     def parse_time(value)
       return nil if value.blank?
-      Time.parse(value.to_s)
+
+      Time.find_zone!("Asia/Bangkok").parse(value.to_s)
     rescue
       nil
     end
