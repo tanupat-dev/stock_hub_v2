@@ -15,7 +15,7 @@ module Orders
 
       def call!
         items = Array(@raw["line_items"])
-        return if items.blank?
+        return 0 if items.blank?
 
         now = Time.current
 
@@ -32,86 +32,123 @@ module Orders
             {}
           end
 
-        rows = items.map do |li|
+        rows = []
+
+        items.each do |li|
           external_line_id = li["id"].to_s.presence
 
           raw_sku = li["seller_sku"].to_s
           external_sku = raw_sku.strip
+          next if external_sku.blank?
 
           mapping = mappings[external_sku]
 
-          # ===== SKU RESOLUTION =====
           sku =
             mapping&.sku ||
             find_sku_exact(external_sku)
 
-          # ===== AUTO CREATE MAPPING (SAFE) =====
-          if mapping.blank? && sku.present? && external_sku.present?
-            begin
-              mapping = SkuMapping.find_or_create_by!(
-                channel: "tiktok",
-                shop_id: @shop.id,
-                external_sku: external_sku
-              ) do |m|
-                m.sku_id = sku.id
-              end
-            rescue ActiveRecord::RecordNotUnique
-              # race condition safe ignore
-            end
+          if mapping.blank? && sku.present?
+            mapping = find_or_create_mapping!(external_sku, sku)
+            mappings[external_sku] = mapping if mapping.present?
           end
 
-          # ===== QUANTITY FIX (CRITICAL) =====
           quantity = li["quantity"].to_i
           quantity = 1 if quantity <= 0
 
-          idem_key = build_idempotency_key(external_line_id, external_sku)
+          existing_line = existing_line_for(
+            external_line_id: external_line_id,
+            external_sku: external_sku
+          )
 
-          {
+          idempotency_key =
+            existing_line&.idempotency_key.presence ||
+            build_canonical_idempotency_key(external_line_id, external_sku)
+
+          rows << {
             order_id: @order.id,
             external_line_id: external_line_id,
             external_sku: external_sku,
             sku_id: sku&.id,
             quantity: quantity,
-            status: @order.status,
-            idempotency_key: idem_key,
+            status: li["display_status"].to_s.presence || @order.status,
+            idempotency_key: idempotency_key,
             raw_payload: li,
             created_at: now,
             updated_at: now
           }
         end
 
-        return if rows.blank?
+        return 0 if rows.blank?
 
         OrderLine.upsert_all(
           rows,
           unique_by: :index_order_lines_on_idempotency_key,
           record_timestamps: false,
           update_only: %i[
-            sku_id
+            external_line_id
             external_sku
+            sku_id
             quantity
             status
             raw_payload
             updated_at
           ]
         )
+
+        rows.size
       end
 
       private
 
-      # ===== SKU LOOKUP =====
+      def existing_line_for(external_line_id:, external_sku:)
+        if external_line_id.present?
+          line =
+            OrderLine.find_by(
+              order_id: @order.id,
+              external_line_id: external_line_id
+            )
+
+          return line if line.present?
+        end
+
+        return nil if external_sku.blank?
+
+        OrderLine
+          .where(order_id: @order.id, external_sku: external_sku)
+          .order(:id)
+          .first
+      end
 
       def find_sku_exact(code)
         return nil if code.blank?
+
         Sku.find_by(code: code)
       end
 
-      # ===== IDEMPOTENCY =====
+      def find_or_create_mapping!(external_sku, sku)
+        SkuMapping.find_or_create_by!(
+          channel: "tiktok",
+          shop_id: @shop.id,
+          external_sku: external_sku
+        ) do |mapping|
+          mapping.sku_id = sku.id
+        end
+      rescue ActiveRecord::RecordNotUnique
+        SkuMapping.find_by(
+          channel: "tiktok",
+          shop_id: @shop.id,
+          external_sku: external_sku
+        )
+      end
 
-      def build_idempotency_key(external_line_id, external_sku)
+      def build_canonical_idempotency_key(external_line_id, external_sku)
         base = external_line_id.presence || external_sku.presence || SecureRandom.uuid
 
-        "tiktok:shop:#{@shop.id}:order:#{@order.external_order_id}:line:#{base}"
+        # Important:
+        # keep this aligned with Orders::UpsertFromSearchRows.
+        # Old detail keys had "tiktok:shop:<shop_id>:order:..."
+        # We preserve old keys only when an existing line is found.
+        "tiktok:order:#{@order.external_order_id}:line:#{base}"
       end
     end
   end

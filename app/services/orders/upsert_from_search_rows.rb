@@ -3,7 +3,6 @@
 module Orders
   class UpsertFromSearchRows
     RESERVE_STATUSES = %w[
-      UNPAID
       ON_HOLD
       AWAITING_FULFILLMENT
       READY_TO_SHIP
@@ -19,6 +18,7 @@ module Orders
     ].freeze
 
     NOOP_STATUSES = %w[
+      UNPAID
       DELIVERED
       COMPLETED
     ].freeze
@@ -39,7 +39,7 @@ module Orders
       external_ids = @rows.map { |r| r["id"].to_s }.reject(&:blank?).uniq
       existing =
         Order.where(channel: "tiktok", shop_id: @shop.id, external_order_id: external_ids)
-            .index_by(&:external_order_id)
+             .index_by(&:external_order_id)
 
       @rows.each do |r|
         external_order_id = r["id"].to_s
@@ -87,7 +87,11 @@ module Orders
           incoming_update_time > prev_update_time ||
           mapping_changed
 
-        apply_inventory!(order, payload, prev_status) if should_apply
+        if should_apply
+          apply_inventory!(order, payload, prev_status)
+        else
+          repair_missing_inventory_actions!(order, payload, prev_status)
+        end
       end
 
       @rows.size
@@ -164,26 +168,59 @@ module Orders
       items = Array(row["line_items"])
       return false if items.blank?
 
+      external_skus =
+        items
+          .map { |li| li["seller_sku"].to_s.presence || li["sku_id"].to_s }
+          .map { |v| v.to_s.strip }
+          .reject(&:blank?)
+          .uniq
+
       mappings =
-        SkuMapping.where(channel: "tiktok", shop_id: @shop.id)
-                  .index_by(&:external_sku)
+        SkuMapping
+          .includes(:sku)
+          .where(channel: "tiktok", shop_id: @shop.id, external_sku: external_skus)
+          .index_by(&:external_sku)
 
       mapping_changed = false
 
       items.each do |li|
         external_line_id = li["id"].to_s.presence
-        external_sku = li["seller_sku"].to_s.presence || li["sku_id"].to_s
+        external_sku = (li["seller_sku"].to_s.presence || li["sku_id"].to_s).to_s.strip
         next if external_sku.blank?
 
-        sku_id = mappings[external_sku]&.sku_id
+        mapping = mappings[external_sku]
+
+        sku =
+          mapping&.sku ||
+          find_sku_exact(external_sku)
+
+        if mapping.blank? && sku.present?
+          mapping = find_or_create_mapping!(external_sku, sku)
+          mappings[external_sku] = mapping if mapping.present?
+        end
+
+        sku_id = sku&.id
         qty = [ li["quantity"].to_i, 1 ].max
 
-        idk = "tiktok:order:#{order.external_order_id}:line:#{external_line_id || external_sku}"
+        existing_line = existing_line_for(
+          order: order,
+          external_line_id: external_line_id,
+          external_sku: external_sku
+        )
 
-        existing_line = OrderLine.find_by(idempotency_key: idk)
-        if existing_line && existing_line.sku_id.nil? && sku_id.present?
-          mapping_changed = true
+        if sku_id.present?
+          if existing_line.nil?
+            mapping_changed = true
+          elsif existing_line.sku_id != sku_id
+            mapping_changed = true
+          elsif missing_all_inventory_actions?(existing_line)
+            mapping_changed = true
+          end
         end
+
+        idk =
+          existing_line&.idempotency_key.presence ||
+          build_canonical_idempotency_key(order, external_line_id, external_sku)
 
         OrderLine.upsert_all(
           [ {
@@ -201,7 +238,13 @@ module Orders
           unique_by: :index_order_lines_on_idempotency_key,
           record_timestamps: false,
           update_only: %i[
-            external_line_id external_sku sku_id quantity status raw_payload updated_at
+            external_line_id
+            external_sku
+            sku_id
+            quantity
+            status
+            raw_payload
+            updated_at
           ]
         )
       end
@@ -209,11 +252,73 @@ module Orders
       mapping_changed
     end
 
+    def existing_line_for(order:, external_line_id:, external_sku:)
+      if external_line_id.present?
+        line =
+          OrderLine.find_by(
+            order_id: order.id,
+            external_line_id: external_line_id
+          )
+
+        return line if line.present?
+      end
+
+      return nil if external_sku.blank?
+
+      OrderLine
+        .where(order_id: order.id, external_sku: external_sku)
+        .order(:id)
+        .first
+    end
+
+    def build_canonical_idempotency_key(order, external_line_id, external_sku)
+      base = external_line_id.presence || external_sku.presence || SecureRandom.uuid
+
+      "tiktok:order:#{order.external_order_id}:line:#{base}"
+    end
+
+    def find_sku_exact(code)
+      return nil if code.blank?
+
+      Sku.find_by(code: code)
+    end
+
+    def find_or_create_mapping!(external_sku, sku)
+      SkuMapping.find_or_create_by!(
+        channel: "tiktok",
+        shop_id: @shop.id,
+        external_sku: external_sku
+      ) do |mapping|
+        mapping.sku_id = sku.id
+      end
+    rescue ActiveRecord::RecordNotUnique
+      SkuMapping.find_by(
+        channel: "tiktok",
+        shop_id: @shop.id,
+        external_sku: external_sku
+      )
+    end
+
+    def missing_all_inventory_actions?(line)
+      InventoryAction
+        .where(order_line_id: line.id, action_type: %w[reserve commit release])
+        .none?
+    end
+
     def apply_inventory!(order, payload, previous_status)
       Orders::Tiktok::ApplyPolicy.call!(
         order: order,
         raw_order: payload,
         previous_status: previous_status
+      )
+    end
+
+    def repair_missing_inventory_actions!(order, payload, previous_status)
+      Orders::RepairMissingInventoryActions.call!(
+        order: order,
+        raw_order: payload,
+        previous_status: previous_status,
+        source: "tiktok_search_row_no_policy_apply"
       )
     end
 

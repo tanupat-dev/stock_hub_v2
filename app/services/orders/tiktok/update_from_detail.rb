@@ -13,6 +13,8 @@ module Orders
       end
 
       def call!
+        previous_status = @order.status.to_s.presence
+
         buyer_name = extract_buyer_name
         province   = extract_province
         buyer_note = extract_buyer_note
@@ -41,11 +43,26 @@ module Orders
           .reject(&:blank?)
           .uniq
 
-        Inventory::RemapSkuReferences.call!(
+        remap_result = Inventory::RemapSkuReferences.call!(
           shop: @order.shop,
           channel: "tiktok",
           external_skus: external_skus
         )
+
+        repair_result = Orders::RepairMissingInventoryActions.call!(
+          order: @order,
+          raw_order: merged_payload,
+          previous_status: previous_status,
+          source: "tiktok_detail_update"
+        )
+
+        {
+          ok: true,
+          order_id: @order.id,
+          external_order_id: @order.external_order_id,
+          remap_result: remap_result,
+          repair_result: repair_result
+        }
       end
 
       private
