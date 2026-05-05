@@ -235,12 +235,47 @@ module Orders
     end
 
     def apply_release!(line:, sku:, qty:, before:, shop_channel:)
-      idk = idem_key(line, "release")
+      release_idk = idem_key(line, "release")
+
+      reserved_for_line = reserved_qty_for_line(line)
+      balance_before_release = sku.inventory_balance&.reload
+      reserved_now = balance_before_release&.reserved.to_i
+
+      if reserved_for_line < qty
+        after_blocked = snapshot(sku)
+
+        log_error(
+          base_log(
+            event: "orders.apply_inventory.release.blocked",
+            order_line_id: line.id,
+            channel: shop_channel,
+            sku: sku.code,
+            quantity: qty,
+            error_reason: "no_prior_line_reserve",
+            reserved_now: reserved_now,
+            reserved_for_line: reserved_for_line,
+            release_idempotency_key: release_idk,
+            before: before,
+            after: after_blocked
+          )
+        )
+
+        return {
+          order_line_id: line.id,
+          action: :release,
+          result: :blocked_no_prior_line_reserve,
+          reserved_now: reserved_now,
+          reserved_for_line: reserved_for_line,
+          release_idempotency_key: release_idk,
+          before: before,
+          after: after_blocked
+        }
+      end
 
       res = Inventory::Release.call!(
         sku: sku,
         quantity: qty,
-        idempotency_key: idk,
+        idempotency_key: release_idk,
         meta: base_meta(shop_channel:).merge(@meta).merge(source: "orders_apply_policy", action: "release"),
         order_line: line
       )
@@ -254,8 +289,10 @@ module Orders
           channel: shop_channel,
           sku: sku.code,
           quantity: qty,
-          idempotency_key: idk,
+          idempotency_key: release_idk,
           result: res,
+          reserved_now: reserved_now,
+          reserved_for_line: reserved_for_line,
           before: before,
           after: after
         )
@@ -267,7 +304,9 @@ module Orders
         order_line_id: line.id,
         action: :release,
         result: res,
-        idempotency_key: idk,
+        idempotency_key: release_idk,
+        reserved_now: reserved_now,
+        reserved_for_line: reserved_for_line,
         before: before,
         after: after
       }
