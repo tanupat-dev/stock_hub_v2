@@ -89,9 +89,9 @@ module Orders
 
         if should_apply
           apply_inventory!(order, payload, prev_status)
-        else
-          repair_missing_inventory_actions!(order, payload, prev_status)
         end
+
+        repair_missing_inventory_actions!(order, payload, prev_status)
       end
 
       @rows.size
