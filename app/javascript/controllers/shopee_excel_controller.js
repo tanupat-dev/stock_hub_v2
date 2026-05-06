@@ -116,27 +116,43 @@ export default class extends Controller {
         throw new Error(data.message || data.error || "Import failed");
       }
 
-      this.importTotalRowsTarget.textContent = data.total_rows ?? 0;
-      this.importSuccessRowsTarget.textContent = data.success_rows ?? 0;
-      this.importFailedRowsTarget.textContent = data.failed_rows ?? 0;
-      this.importSummaryTarget.classList.remove("is-hidden");
-
-      if (data.error_summary) {
-        this.importErrorSummaryTarget.textContent = data.error_summary;
-        this.importErrorSummaryTarget.classList.remove("is-hidden");
-      } else {
-        this.importErrorSummaryTarget.textContent = "";
-        this.importErrorSummaryTarget.classList.add("is-hidden");
+      if (!data.batch_id) {
+        throw new Error("Upload queued but batch_id was missing");
       }
 
-      const completedWithErrors = data.batch_status === "completed_with_errors";
+      this.renderOrderImportBatchResult({
+        total_rows: data.total_rows,
+        success_rows: data.success_rows,
+        failed_rows: data.failed_rows,
+        error_summary: data.error_summary,
+      });
+
       this.showMessage(
         this.importMessageTarget,
-        completedWithErrors
-          ? "Upload completed with errors"
-          : "Upload completed",
-        completedWithErrors ? "error" : "success",
+        `Upload queued. Processing batch #${data.batch_id}...`,
+        "success",
       );
+
+      this.setButtonLoading(this.importButtonTarget, true, "Processing...");
+
+      const batch = await this.pollOrderImportBatchStatus(data.batch_id);
+      this.renderOrderImportBatchResult(batch);
+
+      if (batch.status === "completed") {
+        this.showMessage(
+          this.importMessageTarget,
+          "Upload completed",
+          "success",
+        );
+      } else if (batch.status === "completed_with_errors") {
+        this.showMessage(
+          this.importMessageTarget,
+          "Upload completed with errors",
+          "error",
+        );
+      } else {
+        throw new Error(batch.error_summary || "Import failed");
+      }
     } catch (error) {
       this.hideImportSummary();
       this.showMessage(
@@ -146,6 +162,81 @@ export default class extends Controller {
       );
     } finally {
       this.setButtonLoading(this.importButtonTarget, false, "Upload");
+    }
+  }
+
+  async pollOrderImportBatchStatus(batchId) {
+    const maxAttempts = 120;
+    const delayMs = 2000;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const params = new URLSearchParams({
+        channel: "shopee",
+        kind: "shopee_order_import",
+        limit: "10",
+      });
+
+      if (this.hasShopIdValue && this.shopIdValue) {
+        params.set("shop_id", String(this.shopIdValue));
+      }
+
+      const response = await fetch(`/ops/file_batches?${params.toString()}`, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const data = await this.parseJsonResponse(
+        response,
+        `pollOrderImportBatchStatus /ops/file_batches batch=${batchId}`,
+      );
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Failed to check import status");
+      }
+
+      const batch = (data.file_batches || []).find(
+        (item) => Number(item.id) === Number(batchId),
+      );
+
+      if (!batch) {
+        throw new Error(`Import batch #${batchId} not found`);
+      }
+
+      this.renderOrderImportBatchResult(batch);
+
+      this.showMessage(
+        this.importMessageTarget,
+        `Import ${batch.status}: ${batch.success_rows || 0}/${batch.total_rows || 0} rows`,
+        batch.status === "failed" ? "error" : "success",
+      );
+
+      if (
+        batch.status === "completed" ||
+        batch.status === "completed_with_errors" ||
+        batch.status === "failed"
+      ) {
+        return batch;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    throw new Error("Import is still processing. Please check again later.");
+  }
+
+  renderOrderImportBatchResult(batch) {
+    this.importTotalRowsTarget.textContent = batch.total_rows ?? 0;
+    this.importSuccessRowsTarget.textContent = batch.success_rows ?? 0;
+    this.importFailedRowsTarget.textContent = batch.failed_rows ?? 0;
+    this.importSummaryTarget.classList.remove("is-hidden");
+
+    if (batch.error_summary) {
+      this.importErrorSummaryTarget.textContent = batch.error_summary;
+      this.importErrorSummaryTarget.classList.remove("is-hidden");
+    } else {
+      this.importErrorSummaryTarget.textContent = "";
+      this.importErrorSummaryTarget.classList.add("is-hidden");
     }
   }
 
@@ -366,7 +457,7 @@ export default class extends Controller {
 
   isXlsxFile(file) {
     const name = file.name.toLowerCase();
-    return name.endsWith(".xlsx") || name.endsWith(".xls");
+    return name.endsWith(".xlsx");
   }
 
   hideMessage(target) {

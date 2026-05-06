@@ -5,14 +5,17 @@ class ImportShopeeOrdersJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
-  def perform(shop_id, filepath, source_filename: nil)
-    shop = Shop.find(shop_id)
+  def perform(batch_id, rows)
+    batch = FileBatch.find(batch_id)
+    shop = batch.shop
+
     raise "shop #{shop.id} is not shopee" unless shop.channel == "shopee"
 
     Shopee::ImportOrders.call!(
       shop: shop,
-      filepath: filepath,
-      source_filename: source_filename
+      rows: rows,
+      source_filename: batch.source_filename,
+      batch: batch
     )
   end
 end

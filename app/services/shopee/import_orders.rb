@@ -17,27 +17,34 @@ module Shopee
       "หมายเหตุจากผู้ซื้อ"
     ].freeze
 
-    def self.call!(shop:, filepath:, source_filename: nil)
-      new(shop:, filepath:, source_filename:).call!
+    def self.parse_rows!(filepath)
+      new(shop: nil, filepath: filepath, source_filename: File.basename(filepath.to_s)).load_rows!
     end
 
-    def initialize(shop:, filepath:, source_filename:)
+    def self.call!(shop:, filepath: nil, rows: nil, source_filename: nil, batch: nil)
+      new(
+        shop: shop,
+        filepath: filepath,
+        rows: rows,
+        source_filename: source_filename,
+        batch: batch
+      ).call!
+    end
+
+    def initialize(shop:, filepath: nil, rows: nil, source_filename:, batch: nil)
       @shop = shop
       @filepath = filepath
-      @source_filename = source_filename.presence || File.basename(filepath.to_s)
+      @rows = rows
+      @source_filename =
+        source_filename.presence ||
+        (filepath.present? ? File.basename(filepath.to_s) : "shopee_orders.xlsx")
+      @batch = batch
     end
 
     def call!
-      batch = FileBatch.create!(
-        channel: "shopee",
-        shop: @shop,
-        kind: "shopee_order_import",
-        status: "processing",
-        source_filename: @source_filename,
-        started_at: Time.current
-      )
+      batch = prepare_batch!
 
-      rows = load_rows!
+      rows = normalized_rows
       grouped = group_rows_by_order(rows)
 
       success_orders = 0
@@ -116,9 +123,9 @@ module Shopee
       raise
     end
 
-    private
-
     def load_rows!
+      raise ArgumentError, "filepath is required" if @filepath.blank?
+
       xlsx = Roo::Excelx.new(@filepath)
       sheet = xlsx.sheet(0)
 
@@ -151,6 +158,51 @@ module Shopee
       out
     end
 
+    private
+
+    def prepare_batch!
+      if @batch.present?
+        @batch.update!(
+          status: "processing",
+          started_at: @batch.started_at || Time.current,
+          error_summary: nil
+        )
+
+        return @batch
+      end
+
+      FileBatch.create!(
+        channel: "shopee",
+        shop: @shop,
+        kind: "shopee_order_import",
+        status: "processing",
+        source_filename: @source_filename,
+        started_at: Time.current
+      )
+    end
+
+    def normalized_rows
+      raw_rows = @rows || load_rows!
+
+      raw_rows.map do |row|
+        {
+          order_id: read_row_value(row, :order_id),
+          status_th: read_row_value(row, :status_th),
+          sku_reference: read_row_value(row, :sku_reference),
+          quantity: read_row_value(row, :quantity).to_i,
+          ordered_at_raw: read_row_value(row, :ordered_at_raw),
+          tracking_number: read_row_value(row, :tracking_number),
+          buyer_name: read_row_value(row, :buyer_name),
+          province: read_row_value(row, :province),
+          buyer_note: read_row_value(row, :buyer_note)
+        }
+      end
+    end
+
+    def read_row_value(row, key)
+      row[key] || row[key.to_s]
+    end
+
     def group_rows_by_order(rows)
       rows.group_by { |r| r[:order_id].to_s }
     end
@@ -158,10 +210,12 @@ module Shopee
     def build_raw_order(external_order_id, order_rows)
       first = order_rows.first
       tracking_number = first[:tracking_number]
+
       canonical_status = Orders::Shopee::StatusMapper.call!(
         first[:status_th],
         tracking_number: tracking_number
       )
+
       ordered_at = parse_time(first[:ordered_at_raw])
 
       {
