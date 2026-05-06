@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class ImportShopeeOrdersJob < ApplicationJob
-  queue_as :default
+  queue_as :imports
 
   discard_on ActiveRecord::RecordNotFound
 

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SkuImportJob < ApplicationJob
-  queue_as :default
+  queue_as :imports
 
   BATCH_SIZE = 200
 
@@ -208,7 +208,7 @@ class SkuImportJob < ApplicationJob
       model: presence_or_nil(row["model"]),
       color: presence_or_nil(row["color"]),
       size: presence_or_nil(row["size"]),
-      created_at: now,   # 🔥 FIX
+      created_at: now,
       updated_at: now
     }.tap do |attrs|
       buffer = parse_non_negative_integer(row["buffer_quantity"])

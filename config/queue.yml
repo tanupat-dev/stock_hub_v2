@@ -21,6 +21,11 @@ development:
       processes: 1
       polling_interval: 0.5
 
+    - queues: "imports"
+      threads: 1
+      processes: 1
+      polling_interval: 0.2
+
     - queues: "default"
       threads: 1
       processes: 1
@@ -56,6 +61,11 @@ production:
       threads: <%= ENV.fetch("JOB_THREADS_RECONCILE", 1) %>
       processes: <%= ENV.fetch("JOB_PROCESSES_RECONCILE", 1) %>
       polling_interval: 0.5
+
+    - queues: "imports"
+      threads: <%= ENV.fetch("JOB_THREADS_IMPORTS", 1) %>
+      processes: <%= ENV.fetch("JOB_PROCESSES_IMPORTS", 1) %>
+      polling_interval: 0.2
 
     - queues: "default"
       threads: <%= ENV.fetch("JOB_THREADS_DEFAULT", 1) %>
