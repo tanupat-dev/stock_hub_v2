@@ -21,7 +21,7 @@ development:
       processes: 1
       polling_interval: 0.5
 
-    - queues: "default"
+    - queues: "default,solid_queue_recurring"
       threads: 1
       processes: 1
       polling_interval: 0.2
@@ -52,7 +52,7 @@ production:
       processes: <%= ENV.fetch("JOB_PROCESSES_RECONCILE", 1) %>
       polling_interval: 0.5
 
-    - queues: "default"
+    - queues: "default,solid_queue_recurring"
       threads: <%= ENV.fetch("JOB_THREADS_DEFAULT", 1) %>
       processes: <%= ENV.fetch("JOB_PROCESSES_DEFAULT", 1) %>
       polling_interval: 0.2
