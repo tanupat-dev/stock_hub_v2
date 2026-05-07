@@ -311,6 +311,11 @@ export const productManagementLedgerMethods = {
 
     if (!order && !line) return "";
 
+    const channelLabel =
+      order?.shop_label || this.humanizeLedgerText(order?.channel || "-");
+
+    const lineSku = line?.external_sku || line?.sku_code || "-";
+
     return `
       <div class="ledger-clean-order">
         ${
@@ -320,13 +325,12 @@ export const productManagementLedgerMethods = {
                 <span>Order</span>
                 <strong>${this.escapeHtml(order.external_order_id || "-")}</strong>
               </div>
+
               <div class="ledger-clean-order__row">
                 <span>Channel</span>
-                <strong>
-                  ${this.escapeHtml(order.channel || "-")}
-                  ${order.shop_label ? ` · ${this.escapeHtml(order.shop_label)}` : ""}
-                </strong>
+                <strong>${this.escapeHtml(channelLabel)}</strong>
               </div>
+
               <div class="ledger-clean-order__row">
                 <span>Status</span>
                 <strong>${this.escapeHtml(order.status || "-")}</strong>
@@ -339,11 +343,8 @@ export const productManagementLedgerMethods = {
           line
             ? `
               <div class="ledger-clean-order__row">
-                <span>Line</span>
-                <strong>
-                  ${this.escapeHtml(line.external_line_id || line.id || "-")}
-                  ${line.external_sku ? ` · ${this.escapeHtml(line.external_sku)}` : ""}
-                </strong>
+                <span>SKU</span>
+                <strong>${this.escapeHtml(lineSku)}</strong>
               </div>
             `
             : ""
