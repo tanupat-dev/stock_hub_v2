@@ -1,0 +1,263 @@
+.table-wrap {
+  overflow: auto;
+}
+
+.sku-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1100px;
+}
+
+.sku-table th,
+.sku-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
+}
+
+.sku-table th {
+  text-align: left;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.th-center,
+.td-center {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.cell-main {
+  font-weight: 600;
+}
+
+.sku-code-link {
+  font-weight: 700;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.sku-subtext {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.sku-subtext--muted {
+  color: #64748b;
+  font-size: 11px;
+}
+
+/* SKU BADGE */
+
+.sku-badge {
+  margin-top: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  display: inline-block;
+  font-weight: 600;
+}
+
+.sku-badge--frozen {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.sku-badge--oversold {
+  background: #fecaca;
+  color: #7f1d1d;
+}
+
+.sku-badge--low {
+  background: #fde68a;
+  color: #92400e;
+}
+
+.sku-badge--manual {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* TOP BADGES */
+
+.sku-top-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.badge--danger {
+  background: #fecaca;
+  color: #7f1d1d;
+}
+
+.badge--warning {
+  background: #fde68a;
+  color: #92400e;
+}
+
+/* ROW ACTIONS */
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.row-actions--center {
+  justify-content: center;
+  align-items: center;
+}
+
+.row-actions--compact {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.ui-pill.ui-pill--button.is-danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.ui-pill.ui-pill--button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* RISK TABLE STATES */
+
+.sku-row--risky > td {
+  background: #fffdfa;
+}
+
+.sku-row--frozen > td {
+  background: #fff7f7;
+}
+
+.sku-detail-row {
+  display: none;
+}
+
+.sku-detail-row.is-open {
+  display: table-row;
+}
+
+.sku-detail-row td {
+  padding-top: 0;
+  background: #f8fafc;
+}
+
+.sku-detail-panel {
+  display: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 16px;
+  margin: 0 0 14px;
+}
+
+.sku-detail-panel.is-open {
+  display: block;
+}
+
+.sku-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sku-detail-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.sku-detail-card--primary {
+  background: #ecfeff;
+  border-color: #67e8f9;
+}
+
+.sku-detail-card--danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.sku-detail-card--warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.sku-detail-card__label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.sku-detail-card__value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.sku-detail-meta {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.sku-detail-meta__label {
+  font-weight: 700;
+  color: #111827;
+}
+
+.sku-risk-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sku-risk-note {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff1f2;
+  color: #9f1239;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sku-detail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* UTIL */
+
+.text-muted {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.text-danger {
+  color: #dc2626;
+  font-weight: 700;
+}

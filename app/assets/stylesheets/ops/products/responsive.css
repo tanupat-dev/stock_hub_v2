@@ -1,0 +1,100 @@
+@media (max-width: 1100px) {
+  .sku-detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .ledger-drawer {
+    width: 100%;
+    right: -100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .sku-table td,
+  .sku-table th {
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  .row-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .row-actions--center {
+    align-items: stretch;
+  }
+
+  .sku-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sku-detail-panel {
+    padding: 12px;
+  }
+
+  .sku-detail-card {
+    padding: 10px;
+  }
+
+  .sku-risk-notes {
+    flex-direction: column;
+  }
+
+  .sku-detail-actions {
+    flex-direction: column;
+  }
+
+  .sku-detail-actions .ui-pill.ui-pill--button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .import-file-picker {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .import-file-picker__button {
+    width: 100%;
+  }
+
+  .import-result-mini {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sku-detail-card__value {
+    font-size: 14px;
+  }
+
+  .sku-detail-meta {
+    font-size: 12px;
+  }
+
+  .row-actions {
+    flex-wrap: wrap;
+  }
+
+  .ledger-summary__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ledger-entry__top {
+    flex-direction: column;
+  }
+
+  .ledger-entry__delta {
+    text-align: left;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .sku-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

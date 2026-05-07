@@ -5,13 +5,13 @@ export const productManagementLedgerMethods = {
     this.ledgerListTarget.innerHTML = `<div class="ledger-loading">Loading...</div>`;
     this.ledgerEmptyTarget.style.display = "none";
 
-    const sku = this.currentSkus?.find(
+    const fallbackSku = this.currentSkus?.find(
       (item) => Number(item.id) === Number(skuId),
     );
 
-    if (sku) {
-      this.ledgerSkuSummaryTarget.textContent =
-        `${sku.code} • ${sku.brand || "-"} ${sku.model || ""}`.trim();
+    if (fallbackSku) {
+      this.ledgerSkuSummaryTarget.innerHTML =
+        this.renderLedgerSkuSummary(fallbackSku);
     }
 
     try {
@@ -28,13 +28,12 @@ export const productManagementLedgerMethods = {
         throw new Error(data.error || "Failed to load ledger");
       }
 
-      const ledger = data.ledger?.entries || [];
-      const skuData = data.sku || sku || {};
+      const sku = data.sku || fallbackSku || {};
+      const entries = data.ledger?.entries || [];
 
-      this.ledgerSkuSummaryTarget.innerHTML =
-        this.renderLedgerSkuSummary(skuData);
+      this.ledgerSkuSummaryTarget.innerHTML = this.renderLedgerSkuSummary(sku);
 
-      if (ledger.length === 0) {
+      if (entries.length === 0) {
         this.ledgerListTarget.innerHTML = "";
         this.ledgerEmptyTarget.style.display = "block";
         this.ledgerEmptyTarget.textContent = "ยังไม่มี ledger entries";
@@ -42,11 +41,10 @@ export const productManagementLedgerMethods = {
       }
 
       this.ledgerEmptyTarget.style.display = "none";
-      this.ledgerListTarget.innerHTML = this.renderLedgerEntries(ledger);
+      this.ledgerListTarget.innerHTML = this.renderLedgerEntries(entries);
     } catch (error) {
       console.error("loadLedger error", error);
-      this.ledgerListTarget.innerHTML =
-        `<div class="ledger-error">โหลด ledger ไม่สำเร็จ</div>`;
+      this.ledgerListTarget.innerHTML = `<div class="ledger-error">โหลด ledger ไม่สำเร็จ</div>`;
     }
   },
 
@@ -57,24 +55,59 @@ export const productManagementLedgerMethods = {
 
   renderLedgerSkuSummary(sku) {
     const code = sku.code || "-";
+    const barcode = sku.barcode || "-";
+    const onHand = sku.on_hand ?? sku.balance?.on_hand ?? 0;
+    const reserved = sku.reserved ?? sku.balance?.reserved ?? 0;
     const store = sku.store_available ?? 0;
     const online = sku.online_available ?? 0;
-    const onHand = sku.on_hand ?? sku.balance?.on_hand;
-    const reserved = sku.reserved ?? sku.balance?.reserved;
 
-    const stockParts = [
-      `Store ${store}`,
-      `Online ${online}`,
-    ];
+    const groupMembers = Array.isArray(sku.group_members)
+      ? sku.group_members
+      : [];
 
-    if (onHand != null) stockParts.unshift(`On hand ${onHand}`);
-    if (reserved != null) stockParts.splice(1, 0, `Reserved ${reserved}`);
+    const groupHtml =
+      groupMembers.length > 1
+        ? `
+          <div class="ledger-summary-clean__group">
+            <span>Shared stock</span>
+            ${groupMembers
+              .map(
+                (member) => `
+                  <span class="ledger-clean-pill ${member.active ? "" : "is-muted"}">
+                    ${this.escapeHtml(member.code || "-")}
+                  </span>
+                `,
+              )
+              .join("")}
+          </div>
+        `
+        : "";
+
+    const frozenHtml = sku.frozen
+      ? `
+        <div class="ledger-summary-clean__alert">
+          Frozen: ${this.escapeHtml(sku.freeze_reason || "frozen")}
+        </div>
+      `
+      : "";
 
     return `
-      <span class="ledger-summary-line">
-        <strong>${this.escapeHtml(code)}</strong>
-        <span>${this.escapeHtml(stockParts.join(" • "))}</span>
-      </span>
+      <div class="ledger-summary-clean">
+        <div class="ledger-summary-clean__title">
+          <strong>${this.escapeHtml(code)}</strong>
+          <span>${this.escapeHtml(barcode)}</span>
+        </div>
+
+        <div class="ledger-summary-clean__stats">
+          <span>On hand <strong>${this.escapeHtml(String(onHand))}</strong></span>
+          <span>Reserved <strong>${this.escapeHtml(String(reserved))}</strong></span>
+          <span>Store <strong>${this.escapeHtml(String(store))}</strong></span>
+          <span>Online <strong>${this.escapeHtml(String(online))}</strong></span>
+        </div>
+
+        ${frozenHtml}
+        ${groupHtml}
+      </div>
     `;
   },
 
@@ -84,9 +117,11 @@ export const productManagementLedgerMethods = {
     return Object.entries(grouped)
       .map(([day, rows]) => {
         return `
-          <section class="ledger-day-group">
+          <section class="ledger-day-group ledger-day-group--clean">
             <div class="ledger-day-group__title">${this.escapeHtml(day)}</div>
-            ${rows.map((entry) => this.renderLedgerEntry(entry)).join("")}
+            <div class="ledger-timeline-clean">
+              ${rows.map((entry) => this.renderLedgerEntry(entry)).join("")}
+            </div>
           </section>
         `;
       })
@@ -112,104 +147,162 @@ export const productManagementLedgerMethods = {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return "-";
 
-    return parsed.toLocaleDateString("th-TH", {
-      year: "numeric",
+    return parsed.toLocaleDateString("en-GB", {
+      day: "2-digit",
       month: "short",
-      day: "numeric",
+      year: "numeric",
     });
   },
 
   renderLedgerEntry(entry) {
-    const title =
-      entry.action_label ||
-      (entry.source_type === "inventory_action"
-        ? entry.action_type || "inventory_action"
-        : entry.reason || "stock_movement");
-
+    const title = this.ledgerEntryTitle(entry);
     const actionClass = this.ledgerActionClass(entry);
-    const deltaLabel =
-      entry.delta_label || this.fallbackLedgerDeltaLabel(entry);
-
-    const quantity = entry.quantity == null ? "-" : entry.quantity;
-    const meta = this.escapeHtml(JSON.stringify(entry.meta || {}, null, 2));
+    const time = this.cleanLedgerTime(
+      entry.occurred_at_th || entry.occurred_at,
+    );
+    const deltaLabel = this.ledgerDeltaLabel(entry);
+    const facts = this.renderLedgerFacts(entry);
+    const orderBlock = this.renderLedgerOrderBlock(entry);
+    const details = this.renderLedgerDetails(entry);
 
     return `
-      <article class="ledger-entry ledger-entry--${this.escapeHtml(actionClass)}">
-        <div class="ledger-entry__top">
-          <div>
-            <div class="ledger-entry__title-row">
-              <span class="ledger-action-badge ledger-action-badge--${this.escapeHtml(actionClass)}">
+      <article class="ledger-entry-clean ledger-entry-clean--${this.escapeHtml(actionClass)}">
+        <div class="ledger-entry-clean__rail">
+          <span class="ledger-entry-clean__dot ledger-entry-clean__dot--${this.escapeHtml(actionClass)}"></span>
+        </div>
+
+        <div class="ledger-entry-clean__card">
+          <div class="ledger-entry-clean__top">
+            <div class="ledger-entry-clean__main">
+              <div class="ledger-entry-clean__title">
                 ${this.escapeHtml(title)}
-              </span>
-              <span class="ledger-entry__source">
-                ${this.escapeHtml(entry.source_type || "-")}
-              </span>
+              </div>
+              <div class="ledger-entry-clean__time">
+                ${this.escapeHtml(time)}
+              </div>
             </div>
 
-            <div class="ledger-entry__sub">
-              ${this.escapeHtml(entry.occurred_at_th || entry.occurred_at || "-")}
-            </div>
+            ${
+              deltaLabel
+                ? `
+                  <div class="ledger-entry-clean__delta ledger-entry-clean__delta--${this.escapeHtml(actionClass)}">
+                    ${this.escapeHtml(deltaLabel)}
+                  </div>
+                `
+                : ""
+            }
           </div>
 
-          <div class="ledger-entry__delta">
-            ${this.escapeHtml(deltaLabel)}
-          </div>
+          ${facts ? `<div class="ledger-entry-clean__facts">${facts}</div>` : ""}
+
+          ${orderBlock}
+          ${details}
         </div>
-
-        <div class="ledger-entry__meta-row">
-          <span>Qty: ${this.escapeHtml(String(quantity))}</span>
-          <span>ID: ${this.escapeHtml(String(entry.id || "-"))}</span>
-          ${this.renderLedgerDeltaChip("On hand", entry.delta_on_hand)}
-          ${this.renderLedgerDeltaChip("Reserved", entry.delta_reserved)}
-          ${this.renderLedgerMetaBadges(entry)}
-        </div>
-
-        ${this.renderLedgerOrderBlock(entry)}
-        ${this.renderLedgerIdempotency(entry)}
-
-        <details class="ledger-entry__details">
-          <summary>Meta</summary>
-          <pre>${meta}</pre>
-        </details>
       </article>
     `;
   },
 
-  renderLedgerDeltaChip(label, value) {
-    if (value == null || Number(value) === 0) return "";
+  ledgerEntryTitle(entry) {
+    const meta = this.ledgerMergedMeta(entry);
 
-    return `<span>${this.escapeHtml(label)}: ${this.escapeHtml(this.signedLedgerNumber(value))}</span>`;
+    if (entry.source_type === "stock_movement") {
+      const delta = Number(entry.delta_on_hand || 0);
+      if (delta > 0) return "Stock in";
+      if (delta < 0) return "Stock out";
+      return "Stock movement";
+    }
+
+    if (entry.action_type === "stock_adjust") {
+      if (meta.set_to != null && meta.set_to !== "") {
+        return `Set stock to ${meta.set_to}`;
+      }
+
+      if (meta.delta != null && meta.delta !== "") {
+        return `Adjust stock ${this.signedLedgerNumber(meta.delta)}`;
+      }
+
+      return "Stock adjust";
+    }
+
+    if (entry.action_label) return entry.action_label;
+
+    return this.humanizeLedgerText(entry.action_type || "Ledger event");
   },
 
-  renderLedgerMetaBadges(entry) {
-    const meta = entry.extracted_meta || entry.meta || {};
-    const badges = [];
+  renderLedgerFacts(entry) {
+    const facts = [];
 
-    if (meta.shortfall != null) {
-      badges.push(
-        `<span class="ledger-badge ledger-badge--warn">Shortfall ${this.escapeHtml(String(meta.shortfall))}</span>`,
-      );
+    if (this.shouldShowQuantity(entry)) {
+      facts.push({
+        label: "Qty",
+        value: entry.quantity,
+        tone: "strong",
+      });
     }
 
-    if (meta.adjust_mode) {
-      badges.push(
-        `<span class="ledger-badge">${this.escapeHtml(meta.adjust_mode)}</span>`,
-      );
+    const source = this.ledgerPrimarySource(entry);
+    if (source) {
+      facts.push({
+        label: "Source",
+        value: source,
+        tone: "muted",
+      });
     }
 
-    if (meta.source) {
-      badges.push(
-        `<span class="ledger-badge">${this.escapeHtml(meta.source)}</span>`,
-      );
+    const meta = this.ledgerMergedMeta(entry);
+    const shortfall = Number(meta.shortfall || 0);
+    if (shortfall > 0) {
+      facts.push({
+        label: "Shortfall",
+        value: shortfall,
+        tone: "danger",
+      });
     }
 
-    if (meta.scan_match_type) {
-      badges.push(
-        `<span class="ledger-badge">${this.escapeHtml(meta.scan_match_type)}</span>`,
-      );
+    return facts
+      .map(
+        (fact) => `
+          <span class="ledger-clean-fact ledger-clean-fact--${this.escapeHtml(fact.tone)}">
+            <span>${this.escapeHtml(fact.label)}</span>
+            <strong>${this.escapeHtml(String(fact.value))}</strong>
+          </span>
+        `,
+      )
+      .join("");
+  },
+
+  shouldShowQuantity(entry) {
+    if (entry.quantity == null) return false;
+
+    if (entry.action_type === "reserve") return true;
+    if (entry.action_type === "release") return true;
+    if (entry.action_type === "commit") return true;
+    if (entry.action_type === "return_scan") return true;
+    if (entry.action_type === "stock_in") return true;
+
+    const meta = this.ledgerMergedMeta(entry);
+    if (entry.action_type === "stock_adjust" && meta.set_to != null) {
+      return false;
     }
 
-    return badges.join("");
+    return Number(entry.quantity) !== 0;
+  },
+
+  ledgerPrimarySource(entry) {
+    const meta = this.ledgerMergedMeta(entry);
+
+    if (entry.order) return null;
+
+    const source = meta.source || entry.reason;
+    if (!source) return null;
+
+    const normalized = String(source);
+
+    if (normalized === "stock_adjust") return "Manual adjust";
+    if (normalized === "sku_import") return "SKU import";
+    if (normalized === "orders_apply_policy") return "Order policy";
+
+    return this.humanizeLedgerText(normalized);
   },
 
   renderLedgerOrderBlock(entry) {
@@ -219,22 +312,24 @@ export const productManagementLedgerMethods = {
     if (!order && !line) return "";
 
     return `
-      <div class="ledger-entry__order">
+      <div class="ledger-clean-order">
         ${
           order
             ? `
-              <div>
-                <span class="ledger-entry__label">Order</span>
+              <div class="ledger-clean-order__row">
+                <span>Order</span>
                 <strong>${this.escapeHtml(order.external_order_id || "-")}</strong>
               </div>
-              <div>
-                <span class="ledger-entry__label">Channel</span>
-                ${this.escapeHtml(order.channel || "-")}
-                ${order.shop_label ? `• ${this.escapeHtml(order.shop_label)}` : ""}
+              <div class="ledger-clean-order__row">
+                <span>Channel</span>
+                <strong>
+                  ${this.escapeHtml(order.channel || "-")}
+                  ${order.shop_label ? ` · ${this.escapeHtml(order.shop_label)}` : ""}
+                </strong>
               </div>
-              <div>
-                <span class="ledger-entry__label">Status</span>
-                ${this.escapeHtml(order.status || "-")}
+              <div class="ledger-clean-order__row">
+                <span>Status</span>
+                <strong>${this.escapeHtml(order.status || "-")}</strong>
               </div>
             `
             : ""
@@ -243,10 +338,12 @@ export const productManagementLedgerMethods = {
         ${
           line
             ? `
-              <div>
-                <span class="ledger-entry__label">Line</span>
-                ${this.escapeHtml(line.external_line_id || line.id || "-")}
-                ${line.external_sku ? `• ${this.escapeHtml(line.external_sku)}` : ""}
+              <div class="ledger-clean-order__row">
+                <span>Line</span>
+                <strong>
+                  ${this.escapeHtml(line.external_line_id || line.id || "-")}
+                  ${line.external_sku ? ` · ${this.escapeHtml(line.external_sku)}` : ""}
+                </strong>
               </div>
             `
             : ""
@@ -255,24 +352,83 @@ export const productManagementLedgerMethods = {
     `;
   },
 
-  renderLedgerIdempotency(entry) {
-    if (!entry.idempotency_key) return "";
-
-    const shortKey =
-      entry.idempotency_key_short ||
-      this.shortenLedgerKey(entry.idempotency_key);
+  renderLedgerDetails(entry) {
+    const meta = this.escapeHtml(JSON.stringify(entry.meta || {}, null, 2));
+    const key = entry.idempotency_key || "";
 
     return `
-      <div
-        class="ledger-entry__idempotency"
-        title="${this.escapeAttribute(entry.idempotency_key)}">
-        <span>Key</span>
-        <code>${this.escapeHtml(shortKey)}</code>
-      </div>
+      <details class="ledger-clean-details">
+        <summary>Details</summary>
+
+        ${
+          key
+            ? `
+              <div class="ledger-clean-key">
+                <span>Key</span>
+                <code title="${this.escapeAttribute(key)}">
+                  ${this.escapeHtml(entry.idempotency_key_short || this.shortenLedgerKey(key))}
+                </code>
+              </div>
+            `
+            : ""
+        }
+
+        <pre>${meta}</pre>
+      </details>
     `;
   },
 
+  ledgerDeltaLabel(entry) {
+    const meta = this.ledgerMergedMeta(entry);
+
+    const onHand = Number(entry.delta_on_hand || 0);
+    const reserved = Number(entry.delta_reserved || 0);
+
+    if (onHand !== 0 && reserved !== 0) {
+      return `On hand ${this.signedLedgerNumber(onHand)} · Reserved ${this.signedLedgerNumber(reserved)}`;
+    }
+
+    if (onHand !== 0) {
+      return `On hand ${this.signedLedgerNumber(onHand)}`;
+    }
+
+    if (reserved !== 0) {
+      return `Reserved ${this.signedLedgerNumber(reserved)}`;
+    }
+
+    if (
+      entry.action_type === "stock_adjust" &&
+      meta.set_to != null &&
+      meta.set_to !== ""
+    ) {
+      return `Set to ${meta.set_to}`;
+    }
+
+    if (
+      entry.action_type === "stock_adjust" &&
+      meta.delta != null &&
+      meta.delta !== ""
+    ) {
+      return `Delta ${this.signedLedgerNumber(meta.delta)}`;
+    }
+
+    if (entry.delta_label && entry.delta_label !== "No stock delta") {
+      return entry.delta_label.replace(" / ", " · ");
+    }
+
+    return "";
+  },
+
+  ledgerMergedMeta(entry) {
+    return {
+      ...(entry.meta || {}),
+      ...(entry.extracted_meta || {}),
+    };
+  },
+
   ledgerActionClass(entry) {
+    if (entry.source_type === "stock_movement") return "movement";
+
     const raw = String(
       entry.action_type || entry.reason || entry.source_type || "",
     )
@@ -285,15 +441,36 @@ export const productManagementLedgerMethods = {
     if (raw.includes("return-scan")) return "return-scan";
     if (raw.includes("stock-in")) return "stock-in";
     if (raw.includes("stock-adjust")) return "stock-adjust";
-    if (raw.includes("movement")) return "movement";
 
     return "neutral";
   },
 
-  fallbackLedgerDeltaLabel(entry) {
-    if (entry.delta_on_hand == null) return "No stock delta";
+  cleanLedgerTime(value) {
+    if (!value) return "-";
 
-    return `On hand ${this.signedLedgerNumber(entry.delta_on_hand)}`;
+    const raw = String(value)
+      .replace(/\s+ICT$/i, "")
+      .trim();
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    }
+
+    return raw;
+  },
+
+  humanizeLedgerText(value) {
+    return String(value || "")
+      .replaceAll("_", " ")
+      .replaceAll("-", " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
   },
 
   signedLedgerNumber(value) {
