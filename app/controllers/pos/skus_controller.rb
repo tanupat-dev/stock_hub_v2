@@ -1,4 +1,3 @@
-# app/controllers/pos/skus_controller.rb
 # frozen_string_literal: true
 
 module Pos
@@ -84,10 +83,12 @@ module Pos
 
       if include_actions
         InventoryAction
+          .includes(order_line: { order: :shop })
           .where(sku_id: sku.id)
           .order(created_at: :desc, id: :desc)
           .limit(limit)
-          .find_each do |action|
+          .to_a
+          .each do |action|
             entries << serialize_inventory_action(action)
           end
       end
@@ -97,7 +98,8 @@ module Pos
           .where(sku_id: sku.id)
           .order(created_at: :desc, id: :desc)
           .limit(limit)
-          .find_each do |movement|
+          .to_a
+          .each do |movement|
             entries << serialize_stock_movement(movement)
           end
       end
@@ -109,7 +111,7 @@ module Pos
 
       render json: {
         ok: true,
-        sku: serialize_sku(sku),
+        sku: serialize_ledger_sku(sku),
         ledger: {
           count: entries.size,
           entries: entries
@@ -328,7 +330,47 @@ module Pos
       }
     end
 
+    def serialize_ledger_sku(sku)
+      data = serialize_sku(sku)
+      balance = sku.inventory_balance
+
+      data.merge(
+        stock_identity_id: sku.stock_identity_id,
+        on_hand: balance&.on_hand.to_i,
+        reserved: balance&.reserved.to_i,
+        store_available: sku.store_available,
+        online_available: sku.online_available,
+        frozen: balance&.frozen_now? || false,
+        frozen_at: balance&.frozen_at&.iso8601,
+        frozen_at_th: format_bangkok_time(balance&.frozen_at),
+        freeze_reason: balance&.freeze_reason,
+        last_pushed_available: balance&.last_pushed_available,
+        last_pushed_at: balance&.last_pushed_at&.iso8601,
+        last_pushed_at_th: format_bangkok_time(balance&.last_pushed_at),
+        group_members: ledger_group_members(sku)
+      )
+    end
+
+    def ledger_group_members(sku)
+      return [] if sku.stock_identity_id.blank?
+
+      Sku
+        .where(stock_identity_id: sku.stock_identity_id)
+        .order(:code)
+        .limit(30)
+        .map do |member|
+          {
+            id: member.id,
+            code: member.code,
+            barcode: member.barcode,
+            active: member.active
+          }
+        end
+    end
+
     def canonical_shop_label(shop)
+      return nil if shop.blank?
+
       code = shop.shop_code.to_s.strip
       code_downcase = code.downcase
       name = shop.name.to_s.strip
@@ -372,27 +414,64 @@ module Pos
     end
 
     def serialize_inventory_action(action)
+      order_line = action.order_line
+      order = order_line&.order
+      shop = order&.shop
+      meta = action.meta.to_h
+
       {
         source_type: "inventory_action",
         id: action.id,
         occurred_at: action.created_at&.iso8601,
+        occurred_at_th: format_bangkok_time(action.created_at),
+        day_group: ledger_day_group(action.created_at),
         action_type: action.action_type,
+        action_label: human_ledger_action(action.action_type),
         quantity: action.quantity,
         delta_on_hand: inferred_action_delta_on_hand(action),
+        delta_reserved: inferred_action_delta_reserved(action),
+        delta_label: ledger_delta_label(action),
+        severity: ledger_action_severity(action),
         order_line_id: action.order_line_id,
         idempotency_key: action.idempotency_key,
-        meta: action.meta
+        idempotency_key_short: shorten_key(action.idempotency_key),
+        meta: meta,
+        extracted_meta: extract_ledger_meta(meta),
+        order_line: order_line && {
+          id: order_line.id,
+          external_sku: order_line.external_sku,
+          external_line_id: order_line.external_line_id,
+          quantity: order_line.quantity,
+          status: order_line.status
+        },
+        order: order && {
+          id: order.id,
+          external_order_id: order.external_order_id,
+          channel: order.channel,
+          status: order.status,
+          shop_id: order.shop_id,
+          shop_label: canonical_shop_label(shop)
+        }
       }
     end
 
     def serialize_stock_movement(movement)
+      meta = movement.meta.to_h
+
       {
         source_type: "stock_movement",
         id: movement.id,
         occurred_at: movement.created_at&.iso8601,
+        occurred_at_th: format_bangkok_time(movement.created_at),
+        day_group: ledger_day_group(movement.created_at),
         reason: movement.reason,
+        action_label: movement.reason.to_s.presence || "Stock movement",
         delta_on_hand: movement.delta_on_hand,
-        meta: movement.meta
+        delta_reserved: 0,
+        delta_label: "On hand #{signed_number(movement.delta_on_hand.to_i)}",
+        severity: movement.delta_on_hand.to_i.negative? ? "warning" : "success",
+        meta: meta,
+        extracted_meta: extract_ledger_meta(meta)
       }
     end
 
@@ -403,12 +482,136 @@ module Pos
       when "return_scan", "stock_in"
         action.quantity.to_i
       when "stock_adjust"
-        nil
+        stock_adjust_delta(action)
       when "reserve", "release"
         0
       else
         nil
       end
+    end
+
+    def inferred_action_delta_reserved(action)
+      case action.action_type
+      when "reserve"
+        action.quantity.to_i
+      when "release", "commit"
+        -action.quantity.to_i
+      else
+        0
+      end
+    end
+
+    def ledger_delta_label(action)
+      on_hand = inferred_action_delta_on_hand(action)
+      reserved = inferred_action_delta_reserved(action)
+
+      parts = []
+      parts << "On hand #{signed_number(on_hand)}" unless on_hand.nil? || on_hand.zero?
+      parts << "Reserved #{signed_number(reserved)}" unless reserved.nil? || reserved.zero?
+
+      return "No stock delta" if parts.empty?
+
+      parts.join(" / ")
+    end
+
+    def ledger_action_severity(action)
+      meta = action.meta.to_h
+
+      return "danger" if meta["shortfall"].present?
+      return "danger" if action.action_type == "commit"
+      return "warning" if action.action_type == "stock_adjust"
+      return "success" if %w[release return_scan stock_in].include?(action.action_type)
+      return "info" if action.action_type == "reserve"
+
+      "neutral"
+    end
+
+    def human_ledger_action(action_type)
+      case action_type.to_s
+      when "reserve"
+        "Reserve"
+      when "release"
+        "Release"
+      when "commit"
+        "Commit"
+      when "return_scan"
+        "Return scan"
+      when "stock_in"
+        "Stock in"
+      when "stock_adjust"
+        "Stock adjust"
+      else
+        action_type.to_s.humanize
+      end
+    end
+
+    def extract_ledger_meta(meta)
+      keys = %w[
+        source
+        mode
+        adjust_mode
+        set_to
+        delta
+        shortfall
+        request_id
+        buffer_quantity
+        scan_input
+        scan_match_type
+        return_shipment_id
+        return_shipment_line_id
+        previous_status
+        status
+        trigger
+        reason
+        barcode
+        quantity
+      ]
+
+      keys.each_with_object({}) do |key, out|
+        value = meta[key]
+        out[key] = value if value.present?
+      end
+    end
+
+    def stock_adjust_delta(action)
+      meta = action.meta.to_h
+
+      return meta["delta"].to_i if meta["delta"].present?
+
+      nil
+    end
+
+    def format_bangkok_time(time)
+      return nil if time.blank?
+
+      time.in_time_zone("Asia/Bangkok").strftime("%d %b %Y %H:%M ICT")
+    end
+
+    def ledger_day_group(time)
+      return "-" if time.blank?
+
+      date = time.in_time_zone("Asia/Bangkok").to_date
+      today = Time.current.in_time_zone("Asia/Bangkok").to_date
+
+      return "Today" if date == today
+      return "Yesterday" if date == today - 1.day
+
+      date.strftime("%d %b %Y")
+    end
+
+    def shorten_key(key)
+      raw = key.to_s
+      return nil if raw.blank?
+      return raw if raw.length <= 34
+
+      "#{raw.first(18)}...#{raw.last(12)}"
+    end
+
+    def signed_number(value)
+      return nil if value.nil?
+
+      n = value.to_i
+      n.positive? ? "+#{n}" : n.to_s
     end
 
     def sku_snapshot(sku)
