@@ -54,16 +54,25 @@ module Returns
     # ========================
 
     def find_or_create_shipment!
-      existing = ReturnShipment
-        .where(
-          channel: @order.channel,
-          shop_id: @order.shop_id,
-          external_order_id: @order.external_order_id
-        )
-        .where("meta ->> 'source' = ?", "cancel_after_commit")
-        .first
+      existing_for_order =
+        ReturnShipment
+          .where(order_id: @order.id)
+          .order(:id)
+          .first
 
-      return existing if existing.present?
+      return existing_for_order if existing_for_order.present?
+
+      existing_by_order_key =
+        ReturnShipment
+          .where(
+            channel: @order.channel,
+            shop_id: @order.shop_id,
+            external_order_id: @order.external_order_id
+          )
+          .order(:id)
+          .first
+
+      return existing_by_order_key if existing_by_order_key.present?
 
       ReturnShipment.create!(
         channel: @order.channel,
