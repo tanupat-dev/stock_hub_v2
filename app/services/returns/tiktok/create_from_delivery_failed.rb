@@ -9,7 +9,6 @@ module Returns
       # - 41801 = cannot deliver / will return to seller
       # - 702xx = package is already in return-to-seller flow
       RTS_ACTION_CODES = [
-        41801,
         70201,
         70202,
         70203,
