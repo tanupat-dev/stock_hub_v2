@@ -254,13 +254,10 @@ module Orders
 
     def existing_line_for(order:, external_line_id:, external_sku:)
       if external_line_id.present?
-        line =
-          OrderLine.find_by(
-            order_id: order.id,
-            external_line_id: external_line_id
-          )
-
-        return line if line.present?
+        return OrderLine.find_by(
+          order_id: order.id,
+          external_line_id: external_line_id
+        )
       end
 
       return nil if external_sku.blank?

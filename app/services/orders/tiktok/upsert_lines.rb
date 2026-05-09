@@ -19,15 +19,23 @@ module Orders
 
         now = Time.current
 
-        external_skus = items.map { |li| li["seller_sku"].to_s.strip }.reject(&:blank?).uniq
+        external_skus =
+          items
+            .map { |li| li["seller_sku"].to_s.presence || li["sku_id"].to_s }
+            .map { |v| v.to_s.strip }
+            .reject(&:blank?)
+            .uniq
 
         mappings =
           if external_skus.any?
-            SkuMapping.where(
-              channel: "tiktok",
-              shop_id: @shop.id,
-              external_sku: external_skus
-            ).includes(:sku).index_by(&:external_sku)
+            SkuMapping
+              .where(
+                channel: "tiktok",
+                shop_id: @shop.id,
+                external_sku: external_skus
+              )
+              .includes(:sku)
+              .index_by(&:external_sku)
           else
             {}
           end
@@ -36,9 +44,7 @@ module Orders
 
         items.each do |li|
           external_line_id = li["id"].to_s.presence
-
-          raw_sku = li["seller_sku"].to_s
-          external_sku = raw_sku.strip
+          external_sku = (li["seller_sku"].to_s.presence || li["sku_id"].to_s).to_s.strip
           next if external_sku.blank?
 
           mapping = mappings[external_sku]
@@ -102,13 +108,10 @@ module Orders
 
       def existing_line_for(external_line_id:, external_sku:)
         if external_line_id.present?
-          line =
-            OrderLine.find_by(
-              order_id: @order.id,
-              external_line_id: external_line_id
-            )
-
-          return line if line.present?
+          return OrderLine.find_by(
+            order_id: @order.id,
+            external_line_id: external_line_id
+          )
         end
 
         return nil if external_sku.blank?
@@ -144,10 +147,6 @@ module Orders
       def build_canonical_idempotency_key(external_line_id, external_sku)
         base = external_line_id.presence || external_sku.presence || SecureRandom.uuid
 
-        # Important:
-        # keep this aligned with Orders::UpsertFromSearchRows.
-        # Old detail keys had "tiktok:shop:<shop_id>:order:..."
-        # We preserve old keys only when an existing line is found.
         "tiktok:order:#{@order.external_order_id}:line:#{base}"
       end
     end
