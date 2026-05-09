@@ -66,9 +66,11 @@ module Orders
             external_sku: external_sku
           )
 
-          idempotency_key =
-            existing_line&.idempotency_key.presence ||
-            build_canonical_idempotency_key(external_line_id, external_sku)
+          idempotency_key = idempotency_key_for(
+            existing_line: existing_line,
+            external_line_id: external_line_id,
+            external_sku: external_sku
+          )
 
           rows << {
             order_id: @order.id,
@@ -120,6 +122,59 @@ module Orders
           .where(order_id: @order.id, external_sku: external_sku)
           .order(:id)
           .first
+      end
+
+      def idempotency_key_for(existing_line:, external_line_id:, external_sku:)
+        canonical_key = build_canonical_idempotency_key(external_line_id, external_sku)
+
+        return canonical_key if existing_line.blank?
+        return existing_line.idempotency_key if external_line_id.blank?
+
+        existing_key = existing_line.idempotency_key.to_s
+
+        return existing_key if existing_key.end_with?(":line:#{external_line_id}")
+
+        conflict =
+          OrderLine
+            .where(idempotency_key: canonical_key)
+            .where.not(id: existing_line.id)
+            .first
+
+        if conflict.present?
+          Rails.logger.error(
+            {
+              event: "orders.tiktok.upsert_lines.idempotency_key_conflict",
+              order_id: @order.id,
+              external_order_id: @order.external_order_id,
+              existing_line_id: existing_line.id,
+              conflict_line_id: conflict.id,
+              external_line_id: external_line_id,
+              existing_key: existing_key,
+              canonical_key: canonical_key
+            }.to_json
+          )
+
+          return existing_key
+        end
+
+        Rails.logger.warn(
+          {
+            event: "orders.tiktok.upsert_lines.repair_stale_idempotency_key",
+            order_id: @order.id,
+            external_order_id: @order.external_order_id,
+            order_line_id: existing_line.id,
+            external_line_id: external_line_id,
+            old_key: existing_key,
+            new_key: canonical_key
+          }.to_json
+        )
+
+        existing_line.update_columns(
+          idempotency_key: canonical_key,
+          updated_at: Time.current
+        )
+
+        canonical_key
       end
 
       def find_sku_exact(code)
