@@ -40,6 +40,7 @@ production:
           limit: 30,
           max_age_days: 14,
           order_direction: "desc",
+          recheck_after_hours: 6,
         }
     schedule: every 30 minutes
 <% end %>
@@ -142,6 +143,7 @@ development:
           limit: 10,
           max_age_days: 14,
           order_direction: "desc",
+          recheck_after_hours: 6,
         }
     schedule: every 1 hour
 

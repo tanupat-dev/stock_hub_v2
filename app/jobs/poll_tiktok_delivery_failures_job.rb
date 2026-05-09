@@ -19,6 +19,9 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
   DEFAULT_LIMIT = 30
   DEFAULT_MAX_AGE_DAYS = 30
   DEFAULT_ORDER_DIRECTION = "desc"
+  DEFAULT_RECHECK_AFTER_HOURS = 6
+
+  CHECK_META_KEY = "_delivery_failure_check"
 
   VALID_ORDER_DIRECTIONS = %w[
     asc
@@ -29,7 +32,8 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
     shop_id,
     limit: DEFAULT_LIMIT,
     max_age_days: DEFAULT_MAX_AGE_DAYS,
-    order_direction: DEFAULT_ORDER_DIRECTION
+    order_direction: DEFAULT_ORDER_DIRECTION,
+    recheck_after_hours: DEFAULT_RECHECK_AFTER_HOURS
   )
     started_at = Time.current
 
@@ -40,6 +44,7 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
     return if shop.shop_cipher.blank?
 
     normalized_order_direction = normalize_order_direction(order_direction)
+    normalized_recheck_after_hours = normalize_recheck_after_hours(recheck_after_hours)
 
     stats = {
       scanned: 0,
@@ -52,7 +57,8 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
       shop: shop,
       limit: limit,
       max_age_days: max_age_days,
-      order_direction: normalized_order_direction
+      order_direction: normalized_order_direction,
+      recheck_after_hours: normalized_recheck_after_hours
     ).each do |order|
       stats[:scanned] += 1
 
@@ -71,9 +77,11 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
           stats[:created] += 1
         else
           stats[:skipped] += 1
+          mark_checked!(order, tracking_data, result: "no_rts_tracking_event")
         end
       rescue => e
         stats[:failed] += 1
+        mark_checked!(order, nil, result: "check_failed", error: e)
 
         Rails.logger.warn(
           {
@@ -100,6 +108,7 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
         limit: limit,
         max_age_days: max_age_days,
         order_direction: normalized_order_direction,
+        recheck_after_hours: normalized_recheck_after_hours,
         stats: stats,
         duration_ms: ((Time.current - started_at) * 1000).round
       }.to_json
@@ -109,20 +118,33 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
       ok: stats[:failed].zero?,
       shop_id: shop.id,
       stats: stats,
-      order_direction: normalized_order_direction
+      order_direction: normalized_order_direction,
+      recheck_after_hours: normalized_recheck_after_hours
     }
   end
 
   private
 
-  def candidate_orders(shop:, limit:, max_age_days:, order_direction:)
+  def candidate_orders(shop:, limit:, max_age_days:, order_direction:, recheck_after_hours:)
     cutoff = Time.current - max_age_days.to_i.days
+    recheck_cutoff = Time.current - recheck_after_hours.hours
     direction = order_direction.to_sym
 
     Order
       .where(channel: "tiktok", shop_id: shop.id, status: "IN_TRANSIT")
       .where("orders.updated_at >= ?", cutoff)
       .where("NULLIF(orders.raw_payload->>'tracking_number', '') IS NOT NULL")
+      .where(
+        <<~SQL.squish,
+          (
+            orders.raw_payload->:check_meta_key IS NULL
+            OR NULLIF(orders.raw_payload->:check_meta_key->>'checked_at', '') IS NULL
+            OR (orders.raw_payload->:check_meta_key->>'checked_at')::timestamp < :recheck_cutoff
+          )
+        SQL
+        check_meta_key: CHECK_META_KEY,
+        recheck_cutoff: recheck_cutoff
+      )
       .where(
         <<~SQL.squish
           EXISTS (
@@ -150,6 +172,42 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
       .to_a
   end
 
+  def mark_checked!(order, tracking_data, result:, error: nil)
+    payload = order.raw_payload || {}
+    latest_event = latest_tracking_event(tracking_data)
+
+    updated_payload = payload.deep_dup
+    updated_payload[CHECK_META_KEY] = {
+      "checked_at" => Time.current.iso8601,
+      "result" => result,
+      "latest_action_code" => latest_event&.dig("action_code"),
+      "latest_description" => latest_event&.dig("description"),
+      "latest_update_time_millis" => latest_event&.dig("update_time_millis"),
+      "error_class" => error&.class&.name,
+      "error_message" => error&.message
+    }.compact
+
+    order.update_columns(
+      raw_payload: updated_payload,
+      updated_at: Time.current
+    )
+  rescue => e
+    Rails.logger.warn(
+      {
+        event: "poll.tiktok.delivery_failures.mark_checked_failed",
+        order_id: order&.id,
+        external_order_id: order&.external_order_id,
+        err_class: e.class.name,
+        err_message: e.message
+      }.to_json
+    )
+  end
+
+  def latest_tracking_event(tracking_data)
+    Array(tracking_data&.dig("tracking"))
+      .max_by { |event| event["update_time_millis"].to_i }
+  end
+
   def normalize_limit(value)
     raw = value.to_i
     return DEFAULT_LIMIT if raw <= 0
@@ -163,5 +221,13 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
     return raw if VALID_ORDER_DIRECTIONS.include?(raw)
 
     DEFAULT_ORDER_DIRECTION
+  end
+
+  def normalize_recheck_after_hours(value)
+    raw = value.to_i
+    return DEFAULT_RECHECK_AFTER_HOURS if raw <= 0
+    return 24 if raw > 24
+
+    raw
   end
 end
