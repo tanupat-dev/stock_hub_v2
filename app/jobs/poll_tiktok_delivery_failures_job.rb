@@ -18,8 +18,19 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
 
   DEFAULT_LIMIT = 30
   DEFAULT_MAX_AGE_DAYS = 30
+  DEFAULT_ORDER_DIRECTION = "desc"
 
-  def perform(shop_id, limit: DEFAULT_LIMIT, max_age_days: DEFAULT_MAX_AGE_DAYS)
+  VALID_ORDER_DIRECTIONS = %w[
+    asc
+    desc
+  ].freeze
+
+  def perform(
+    shop_id,
+    limit: DEFAULT_LIMIT,
+    max_age_days: DEFAULT_MAX_AGE_DAYS,
+    order_direction: DEFAULT_ORDER_DIRECTION
+  )
     started_at = Time.current
 
     shop = Shop.find(shop_id)
@@ -28,6 +39,8 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
     return if shop.tiktok_credential_id.nil?
     return if shop.shop_cipher.blank?
 
+    normalized_order_direction = normalize_order_direction(order_direction)
+
     stats = {
       scanned: 0,
       created: 0,
@@ -35,7 +48,12 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
       failed: 0
     }
 
-    candidate_orders(shop: shop, limit: limit, max_age_days: max_age_days).each do |order|
+    candidate_orders(
+      shop: shop,
+      limit: limit,
+      max_age_days: max_age_days,
+      order_direction: normalized_order_direction
+    ).each do |order|
       stats[:scanned] += 1
 
       begin
@@ -81,6 +99,7 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
         shop_code: shop.shop_code,
         limit: limit,
         max_age_days: max_age_days,
+        order_direction: normalized_order_direction,
         stats: stats,
         duration_ms: ((Time.current - started_at) * 1000).round
       }.to_json
@@ -89,14 +108,16 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
     {
       ok: stats[:failed].zero?,
       shop_id: shop.id,
-      stats: stats
+      stats: stats,
+      order_direction: normalized_order_direction
     }
   end
 
   private
 
-  def candidate_orders(shop:, limit:, max_age_days:)
+  def candidate_orders(shop:, limit:, max_age_days:, order_direction:)
     cutoff = Time.current - max_age_days.to_i.days
+    direction = order_direction.to_sym
 
     Order
       .where(channel: "tiktok", shop_id: shop.id, status: "IN_TRANSIT")
@@ -123,7 +144,7 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
           )
         SQL
       )
-      .order(updated_at_external: :desc, id: :desc)
+      .order(updated_at_external: direction, id: direction)
       .limit(normalize_limit(limit))
       .includes(:shop, order_lines: :sku)
       .to_a
@@ -135,5 +156,12 @@ class PollTiktokDeliveryFailuresJob < ApplicationJob
     return 100 if raw > 100
 
     raw
+  end
+
+  def normalize_order_direction(value)
+    raw = value.to_s.strip.downcase
+    return raw if VALID_ORDER_DIRECTIONS.include?(raw)
+
+    DEFAULT_ORDER_DIRECTION
   end
 end

@@ -3,7 +3,11 @@
 class PollTiktokAllShopsDeliveryFailuresJob < ApplicationJob
   queue_as :poll_orders
 
-  def perform(limit: PollTiktokDeliveryFailuresJob::DEFAULT_LIMIT, max_age_days: PollTiktokDeliveryFailuresJob::DEFAULT_MAX_AGE_DAYS)
+  def perform(
+    limit: PollTiktokDeliveryFailuresJob::DEFAULT_LIMIT,
+    max_age_days: PollTiktokDeliveryFailuresJob::DEFAULT_MAX_AGE_DAYS,
+    order_direction: PollTiktokDeliveryFailuresJob::DEFAULT_ORDER_DIRECTION
+  )
     started_at = Time.current
     total = 0
     enqueued = 0
@@ -32,7 +36,8 @@ class PollTiktokAllShopsDeliveryFailuresJob < ApplicationJob
         PollTiktokDeliveryFailuresJob.perform_later(
           shop.id,
           limit: limit,
-          max_age_days: max_age_days
+          max_age_days: max_age_days,
+          order_direction: order_direction
         )
 
         enqueued += 1
@@ -60,6 +65,7 @@ class PollTiktokAllShopsDeliveryFailuresJob < ApplicationJob
         errors: errors,
         limit: limit,
         max_age_days: max_age_days,
+        order_direction: order_direction,
         duration_ms: ((Time.current - started_at) * 1000).round
       }.to_json
     )
@@ -69,7 +75,8 @@ class PollTiktokAllShopsDeliveryFailuresJob < ApplicationJob
       total_shops: total,
       enqueued: enqueued,
       skipped: skipped,
-      errors: errors
+      errors: errors,
+      order_direction: order_direction
     }
   rescue => e
     Rails.logger.error(
