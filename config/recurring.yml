@@ -31,6 +31,19 @@ production:
     schedule: every 30 minutes
 <% end %>
 
+<% if ENV["ENABLE_TIKTOK_DELIVERY_FAILURES"] == "true" %>
+  poll_tiktok_all_shops_delivery_failures:
+    class: PollTiktokAllShopsDeliveryFailuresJob
+    queue: poll_orders
+    args:
+      - {
+          limit: 30,
+          max_age_days: 14,
+          order_direction: "desc",
+        }
+    schedule: every 30 minutes
+<% end %>
+
 <% if ENV["ENABLE_CATALOG_SYNC"] == "true" %>
   poll_tiktok_all_shops_catalog:
     class: PollTiktokAllShopsCatalogJob
@@ -120,6 +133,17 @@ development:
     queue: poll_orders
     args: []
     schedule: every 10 minutes
+
+  poll_tiktok_all_shops_delivery_failures:
+    class: PollTiktokAllShopsDeliveryFailuresJob
+    queue: poll_orders
+    args:
+      - {
+          limit: 10,
+          max_age_days: 14,
+          order_direction: "desc",
+        }
+    schedule: every 1 hour
 
   poll_tiktok_all_shops_catalog:
     class: PollTiktokAllShopsCatalogJob
