@@ -268,7 +268,7 @@ export default class extends Controller {
       this.hideReturnSummary();
       this.showMessage(
         this.returnMessageTarget,
-        "Please choose a .xlsx file",
+        "Please choose a .xls or .xlsx file",
         "error",
       );
       return;
@@ -355,17 +355,17 @@ export default class extends Controller {
       this.hideFailedDeliverySummary();
       this.showMessage(
         this.failedDeliveryMessageTarget,
-        "Please choose a .xlsx or .csv file",
+        "Please choose a .xls or .xlsx file",
         "error",
       );
       return;
     }
 
-    if (!this.isExcelOrCsvFile(file)) {
+    if (!this.isExcelFile(file)) {
       this.hideFailedDeliverySummary();
       this.showMessage(
         this.failedDeliveryMessageTarget,
-        "Only .xlsx and .csv files are supported",
+        "Only .xls and .xlsx files are supported",
         "error",
       );
       return;
@@ -585,11 +585,6 @@ export default class extends Controller {
   isExcelFile(file) {
     const name = file.name.toLowerCase();
     return name.endsWith(".xls") || name.endsWith(".xlsx");
-  }
-
-  isExcelOrCsvFile(file) {
-    const name = file.name.toLowerCase();
-    return name.endsWith(".xlsx") || name.endsWith(".csv");
   }
 
   hideMessage(target) {
