@@ -80,6 +80,7 @@ Rails.application.routes.draw do
   namespace :shopee do
     post "returns/import", to: "returns#import"
     post "orders/import", to: "orders#import"
+    post "failed_deliveries/import", to: "failed_deliveries#import"
     post "stocks/export", to: "stocks#export"
   end
 

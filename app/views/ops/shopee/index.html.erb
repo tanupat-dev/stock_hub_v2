@@ -162,6 +162,80 @@
     <section class="panel">
       <div class="panel__header">
         <div>
+          <h2>Import Failed Deliveries</h2>
+          <p>อัปโหลดไฟล์ Shopee ที่มีคอลัมน์ “จัดส่งไม่สำเร็จ” เพื่อสร้าง Returns รอสแกนคืน</p>
+        </div>
+      </div>
+
+      <div class="shopee-excel-form">
+        <div class="shopee-file-box">
+          <input
+            id="shopee_failed_delivery_file"
+            type="file"
+            accept=".xlsx,.csv"
+            class="shopee-file-input"
+            data-shopee-excel-target="failedDeliveryFileInput"
+            data-action="change->shopee-excel#failedDeliveryFileChanged"
+          >
+
+          <label
+            for="shopee_failed_delivery_file"
+            class="shopee-file-picker"
+            data-shopee-excel-target="failedDeliveryFilePicker"
+          >
+            <div class="shopee-file-picker__title">Choose failed delivery file</div>
+            <div class="shopee-file-picker__name" data-shopee-excel-target="failedDeliveryFileName">
+              No file selected
+            </div>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            data-shopee-excel-target="failedDeliveryButton"
+            data-action="click->shopee-excel#uploadFailedDeliveries"
+          >
+            Upload Failed Deliveries
+          </button>
+        </div>
+
+        <div
+          class="form-message is-hidden"
+          data-shopee-excel-target="failedDeliveryMessage"
+        ></div>
+
+        <div
+          class="shopee-result-card is-hidden"
+          data-shopee-excel-target="failedDeliverySummary"
+        >
+          <div class="shopee-result-grid">
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Total rows</span>
+              <strong data-shopee-excel-target="failedDeliveryTotalRows">0</strong>
+            </div>
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Success rows</span>
+              <strong data-shopee-excel-target="failedDeliverySuccessRows">0</strong>
+            </div>
+            <div class="shopee-result-item">
+              <span class="shopee-result-item__label">Failed rows</span>
+              <strong data-shopee-excel-target="failedDeliveryFailedRows">0</strong>
+            </div>
+          </div>
+
+          <pre
+            class="shopee-result-error is-hidden"
+            data-shopee-excel-target="failedDeliveryErrorSummary"
+          ></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__header">
+        <div>
           <h2>Export Stock</h2>
           <p>อัปโหลด template แล้วดาวน์โหลดไฟล์ stock ที่เติมข้อมูลแล้ว</p>
         </div>

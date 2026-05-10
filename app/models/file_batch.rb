@@ -7,6 +7,7 @@ class FileBatch < ApplicationRecord
     shopee_order_import
     shopee_stock_export
     shopee_return_import
+    shopee_failed_delivery_import
   ].freeze
 
   STATUSES = %w[

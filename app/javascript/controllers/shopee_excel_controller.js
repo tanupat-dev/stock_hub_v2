@@ -24,6 +24,17 @@ export default class extends Controller {
     "returnFailedRows",
     "returnErrorSummary",
 
+    "failedDeliveryFileInput",
+    "failedDeliveryFilePicker",
+    "failedDeliveryFileName",
+    "failedDeliveryButton",
+    "failedDeliveryMessage",
+    "failedDeliverySummary",
+    "failedDeliveryTotalRows",
+    "failedDeliverySuccessRows",
+    "failedDeliveryFailedRows",
+    "failedDeliveryErrorSummary",
+
     "exportFileInput",
     "exportFilePicker",
     "exportFileName",
@@ -52,6 +63,16 @@ export default class extends Controller {
     );
     this.hideReturnSummary();
     this.hideMessage(this.returnMessageTarget);
+  }
+
+  failedDeliveryFileChanged() {
+    this.updateSelectedFileUI(
+      this.failedDeliveryFileInputTarget,
+      this.failedDeliveryFileNameTarget,
+      this.failedDeliveryFilePickerTarget,
+    );
+    this.hideFailedDeliverySummary();
+    this.hideMessage(this.failedDeliveryMessageTarget);
   }
 
   exportFileChanged() {
@@ -327,6 +348,101 @@ export default class extends Controller {
     }
   }
 
+  async uploadFailedDeliveries() {
+    const file = this.failedDeliveryFileInputTarget.files[0];
+
+    if (!file) {
+      this.hideFailedDeliverySummary();
+      this.showMessage(
+        this.failedDeliveryMessageTarget,
+        "Please choose a .xlsx or .csv file",
+        "error",
+      );
+      return;
+    }
+
+    if (!this.isExcelOrCsvFile(file)) {
+      this.hideFailedDeliverySummary();
+      this.showMessage(
+        this.failedDeliveryMessageTarget,
+        "Only .xlsx and .csv files are supported",
+        "error",
+      );
+      return;
+    }
+
+    this.hideMessage(this.failedDeliveryMessageTarget);
+    this.hideFailedDeliverySummary();
+    this.setButtonLoading(
+      this.failedDeliveryButtonTarget,
+      true,
+      "Uploading...",
+    );
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      if (this.hasShopIdValue && this.shopIdValue) {
+        formData.append("shop_id", this.shopIdValue);
+      }
+
+      const response = await fetch("/shopee/failed_deliveries/import", {
+        method: "POST",
+        headers: {
+          "X-CSRF-Token": this.csrfToken(),
+          Accept: "application/json",
+        },
+        body: formData,
+      });
+
+      const data = await this.parseJsonResponse(
+        response,
+        "uploadFailedDeliveries /shopee/failed_deliveries/import",
+      );
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || data.error || "Import failed");
+      }
+
+      this.failedDeliveryTotalRowsTarget.textContent = data.total_rows ?? 0;
+      this.failedDeliverySuccessRowsTarget.textContent = data.success_rows ?? 0;
+      this.failedDeliveryFailedRowsTarget.textContent = data.failed_rows ?? 0;
+      this.failedDeliverySummaryTarget.classList.remove("is-hidden");
+
+      if (data.error_summary) {
+        this.failedDeliveryErrorSummaryTarget.textContent = data.error_summary;
+        this.failedDeliveryErrorSummaryTarget.classList.remove("is-hidden");
+      } else {
+        this.failedDeliveryErrorSummaryTarget.textContent = "";
+        this.failedDeliveryErrorSummaryTarget.classList.add("is-hidden");
+      }
+
+      const completedWithErrors = data.batch_status === "completed_with_errors";
+
+      this.showMessage(
+        this.failedDeliveryMessageTarget,
+        completedWithErrors
+          ? "Upload completed with errors"
+          : "Upload completed",
+        completedWithErrors ? "error" : "success",
+      );
+    } catch (error) {
+      this.hideFailedDeliverySummary();
+      this.showMessage(
+        this.failedDeliveryMessageTarget,
+        error.message || "Import failed",
+        "error",
+      );
+    } finally {
+      this.setButtonLoading(
+        this.failedDeliveryButtonTarget,
+        false,
+        "Upload Failed Deliveries",
+      );
+    }
+  }
+
   async exportStock() {
     const file = this.exportFileInputTarget.files[0];
 
@@ -443,6 +559,12 @@ export default class extends Controller {
     this.returnErrorSummaryTarget.textContent = "";
   }
 
+  hideFailedDeliverySummary() {
+    this.failedDeliverySummaryTarget.classList.add("is-hidden");
+    this.failedDeliveryErrorSummaryTarget.classList.add("is-hidden");
+    this.failedDeliveryErrorSummaryTarget.textContent = "";
+  }
+
   updateSelectedFileUI(input, nameTarget, pickerTarget) {
     const file = input.files[0];
 
@@ -458,6 +580,11 @@ export default class extends Controller {
   isXlsxFile(file) {
     const name = file.name.toLowerCase();
     return name.endsWith(".xlsx");
+  }
+
+  isExcelOrCsvFile(file) {
+    const name = file.name.toLowerCase();
+    return name.endsWith(".xlsx") || name.endsWith(".csv");
   }
 
   hideMessage(target) {
