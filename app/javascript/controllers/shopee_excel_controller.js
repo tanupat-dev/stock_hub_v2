@@ -274,11 +274,11 @@ export default class extends Controller {
       return;
     }
 
-    if (!this.isXlsxFile(file)) {
+    if (!this.isExcelFile(file)) {
       this.hideReturnSummary();
       this.showMessage(
         this.returnMessageTarget,
-        "Only .xlsx files are supported",
+        "Only .xls and .xlsx files are supported",
         "error",
       );
       return;
@@ -580,6 +580,11 @@ export default class extends Controller {
   isXlsxFile(file) {
     const name = file.name.toLowerCase();
     return name.endsWith(".xlsx");
+  }
+
+  isExcelFile(file) {
+    const name = file.name.toLowerCase();
+    return name.endsWith(".xls") || name.endsWith(".xlsx");
   }
 
   isExcelOrCsvFile(file) {
