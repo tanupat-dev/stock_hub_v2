@@ -16,7 +16,7 @@ module Returns
 
       def call!
         raise ArgumentError, "shop required" if @shop.nil?
-        raise ArgumentError, "shop #{shop.id} is not shopee" unless shop.channel == "shopee"
+        raise ArgumentError, "shop #{@shop.id} is not shopee" unless @shop.channel == "shopee"
 
         external_order_id = @raw.fetch("external_order_id").to_s.strip
         raise ArgumentError, "external_order_id required" if external_order_id.blank?
@@ -29,38 +29,10 @@ module Returns
         ReturnShipment.transaction do
           shipment = existing_shipment(order, external_order_id)
 
-          if shipment.nil?
-            shipment = ReturnShipment.create!(
-              channel: "shopee",
-              shop_id: order.shop_id,
-              order: order,
-              external_order_id: external_order_id,
-              external_return_id: external_return_id(external_order_id),
-              tracking_number: @raw["tracking_number"],
-              status_marketplace: "failed_delivery",
-              status_store: "pending_scan",
-              requested_at: @raw["shipped_at"] || Time.current,
-              return_carrier_method: @raw["shipping_option"],
-              return_delivery_status: @raw["failed_delivery_status"],
-              buyer_username: @raw["buyer_username"],
-              raw_payload: {
-                "source" => SOURCE,
-                "external_order_id" => external_order_id,
-                "tracking_number" => @raw["tracking_number"],
-                "failed_delivery_status" => @raw["failed_delivery_status"],
-                "order_status_raw" => @raw["order_status_raw"],
-                "rows" => @raw["rows"]
-              },
-              meta: {
-                "source" => SOURCE,
-                "external_order_id" => external_order_id,
-                "tracking_number" => @raw["tracking_number"],
-                "failed_delivery_status" => @raw["failed_delivery_status"],
-                "order_status_raw" => @raw["order_status_raw"],
-                "matched_order_shop_id" => order.shop_id
-              },
-              last_seen_at_external: Time.current
-            )
+          if shipment.present?
+            annotate_existing_shipment!(shipment, order, external_order_id)
+          else
+            shipment = create_shipment!(order, external_order_id)
           end
 
           upsert_lines!(shipment, order)
@@ -76,6 +48,9 @@ module Returns
             return_shipment_id: shipment.id,
             external_return_id: shipment.external_return_id,
             tracking_number: shipment.tracking_number,
+            source: shipment.meta&.dig("source"),
+            failed_delivery_import: shipment.meta&.dig("failed_delivery_import"),
+            failed_delivery_status: shipment.meta&.dig("failed_delivery_status"),
             line_count: shipment.return_shipment_lines.count,
             status_store: shipment.status_store
           }.to_json
@@ -85,8 +60,6 @@ module Returns
       end
 
       private
-
-      attr_reader :shop
 
       def find_order!(external_order_id)
         exact = Order.find_by(
@@ -125,6 +98,62 @@ module Returns
             )
             .order(:id)
             .first
+      end
+
+      def create_shipment!(order, external_order_id)
+        ReturnShipment.create!(
+          channel: "shopee",
+          shop_id: order.shop_id,
+          order: order,
+          external_order_id: external_order_id,
+          external_return_id: external_return_id(external_order_id),
+          tracking_number: @raw["tracking_number"],
+          status_marketplace: "failed_delivery",
+          status_store: "pending_scan",
+          requested_at: @raw["shipped_at"] || Time.current,
+          return_carrier_method: carrier_text,
+          return_delivery_status: @raw["failed_delivery_status"],
+          buyer_username: @raw["buyer_username"],
+          raw_payload: build_raw_payload(external_order_id),
+          meta: build_meta(existing_source: nil, external_order_id: external_order_id, order: order),
+          last_seen_at_external: Time.current
+        )
+      end
+
+      def annotate_existing_shipment!(shipment, order, external_order_id)
+        existing_source = shipment.meta&.dig("source")
+
+        next_meta =
+          (shipment.meta || {})
+            .merge(build_meta(existing_source: existing_source, external_order_id: external_order_id, order: order))
+            .compact
+
+        next_raw_payload =
+          (shipment.raw_payload || {})
+            .merge(
+              "failed_delivery_import" => build_raw_payload(external_order_id)
+            )
+            .compact
+
+        attrs = {
+          tracking_number: shipment.tracking_number.presence || @raw["tracking_number"],
+          return_carrier_method: shipment.return_carrier_method.presence || carrier_text,
+          return_delivery_status: @raw["failed_delivery_status"].presence || shipment.return_delivery_status,
+          buyer_username: shipment.buyer_username.presence || @raw["buyer_username"],
+          raw_payload: next_raw_payload,
+          meta: next_meta,
+          last_seen_at_external: Time.current
+        }
+
+        if shipment.external_return_id.blank?
+          attrs[:external_return_id] = external_return_id(external_order_id)
+        end
+
+        if shipment.status_marketplace.to_s == "CANCELLED" || shipment.status_marketplace.blank?
+          attrs[:status_marketplace] = "failed_delivery"
+        end
+
+        shipment.update!(attrs)
       end
 
       def external_return_id(external_order_id)
@@ -173,7 +202,7 @@ module Returns
             return_shipment_id: shipment.id,
             order_line_id: order_line&.id,
             sku_id: sku&.id,
-            external_line_id: "#{shipment.external_return_id}:#{sku_code.presence || index + 1}",
+            external_line_id: "#{shipment.external_return_id.presence || external_return_id(order.external_order_id)}:#{sku_code.presence || index + 1}",
             sku_code_snapshot: sku_code,
             qty_returned: requested_qty,
             raw_payload: line["raw_payload"] || {},
@@ -197,6 +226,36 @@ module Returns
             updated_at
           ]
         )
+      end
+
+      def build_raw_payload(external_order_id)
+        {
+          "source" => SOURCE,
+          "external_order_id" => external_order_id,
+          "tracking_number" => @raw["tracking_number"],
+          "failed_delivery_status" => @raw["failed_delivery_status"],
+          "order_status_raw" => @raw["order_status_raw"],
+          "rows" => @raw["rows"]
+        }.compact
+      end
+
+      def build_meta(existing_source:, external_order_id:, order:)
+        {
+          "source" => existing_source.presence || SOURCE,
+          "original_source" => existing_source,
+          "failed_delivery_import" => true,
+          "failed_delivery_source" => SOURCE,
+          "failed_delivery_status" => @raw["failed_delivery_status"],
+          "failed_delivery_tracking_number" => @raw["tracking_number"],
+          "failed_delivery_imported_at" => Time.current.iso8601,
+          "order_status_raw" => @raw["order_status_raw"],
+          "external_order_id" => external_order_id,
+          "matched_order_shop_id" => order.shop_id
+        }.compact
+      end
+
+      def carrier_text
+        @raw["shipping_option"].presence || @raw["shipping_method"]
       end
     end
   end
