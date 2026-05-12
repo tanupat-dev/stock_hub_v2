@@ -29,7 +29,11 @@ module Orders
             source: "shopee"
           )
 
-          return noop_payload(status)
+          result = noop_payload(status)
+
+          reserve_missing_reservable_lines!(status) if Orders::StatusTransitionGuard.reservable_status?(status)
+
+          return result
         end
 
         if action == :commit && fallback_commit?(status) && !Orders::OpenReserve.commit_safe?(@order)
@@ -46,6 +50,8 @@ module Orders
         end
 
         result = apply!(action, status)
+
+        reserve_missing_reservable_lines!(status) if Orders::StatusTransitionGuard.reservable_status?(status)
 
         if action == :commit && status == "CANCELLED"
           Returns::CreateFromCancelledAfterCommit.call!(
@@ -113,6 +119,43 @@ module Orders
             tracking_number: @raw["tracking_number"]
           }
         )
+      end
+
+      def reserve_missing_reservable_lines!(status)
+        candidates = mapped_lines_missing_inventory_actions
+
+        return nil if candidates.blank?
+
+        prefix = Orders::Shopee::Idempotency.policy_prefix(@order.external_order_id)
+        Orders::Shopee::Idempotency.validate_policy_prefix!(prefix)
+
+        Orders::ApplyInventoryPolicy.call!(
+          order: @order,
+          line_actions: candidates.map { |line| { order_line: line, action: :reserve } },
+          idempotency_prefix: prefix,
+          meta: {
+            source: SOURCE,
+            status: status,
+            previous_status: @previous_status,
+            ordered_at: @raw["ordered_at"],
+            tracking_number: @raw["tracking_number"],
+            repair_action: "reserve_missing_reservable_line_after_upsert"
+          }
+        )
+      end
+
+      def mapped_lines_missing_inventory_actions
+        @order
+          .order_lines
+          .includes(:sku)
+          .order(:id)
+          .select do |line|
+            line.sku_id.present? &&
+              line.sku.present? &&
+              InventoryAction
+                .where(order_line_id: line.id, action_type: %w[reserve commit release])
+                .none?
+          end
       end
 
       def log_repair_required(status)
