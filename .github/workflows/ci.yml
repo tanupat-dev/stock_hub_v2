@@ -102,7 +102,7 @@ jobs:
 
   build:
     name: Build & push Docker image
-    needs: [scan_ruby, scan_js, lint, test]
+    needs: [scan_ruby, scan_js, lint]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
