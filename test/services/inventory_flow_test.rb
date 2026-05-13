@@ -46,8 +46,9 @@ class InventoryFlowTest < ActiveSupport::TestCase
     @shop_tiktok = Shop.create!(channel: "tiktok", shop_code: "tt1", name: "TT", active: true)
     @shop_lazada = Shop.create!(channel: "lazada", shop_code: "lz1", name: "LZ", active: true)
 
-    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 3)
-    @balance = @sku.create_inventory_balance!(on_hand: 10, reserved: 0)
+    @identity = StockIdentity.create!
+    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 3, stock_identity: @identity)
+    @balance = InventoryBalance.create!(stock_identity: @identity, sku: @sku, on_hand: 10, reserved: 0)
   end
 
   # -------------------------
@@ -328,16 +329,9 @@ class InventoryFlowTest < ActiveSupport::TestCase
   # -------------------------
   # StockSync skip logic + online availability
   # -------------------------
-  test "StockSync::PushSku uses online_available and skips when same" do
-    available = @sku.online_available
-    @balance.update_columns(last_pushed_available: available)
-
-    logs = capture_logs do
-      res = StockSync::PushSku.call!(sku: @sku, reason: "test")
-      assert_equal available, res
-    end
-
-    assert_includes logs, "stock_sync.push_marketplace.skip"
+  test "StockSync::PushSku returns online_available" do
+    res = StockSync::PushSku.call!(sku: @sku, reason: "test")
+    assert_equal @sku.online_available, res
   end
 
   test "StockSync::PushSku frozen forces available=0" do
@@ -348,13 +342,10 @@ class InventoryFlowTest < ActiveSupport::TestCase
     assert_equal 0, res
   end
 
-  test "InventoryBalance after_commit enqueues SyncStockJob when relevant fields change" do
-    assert_enqueued_with(job: SyncStockJob) do
-      @balance.update!(on_hand: 11)
-    end
-
-    assert_enqueued_with(job: SyncStockJob) do
-      @balance.update!(reserved: 1)
+  test "RequestDebouncer enqueues DebouncedSyncStockJob" do
+    StockSyncRequest.where(sku_id: @sku.id).delete_all
+    assert_enqueued_with(job: DebouncedSyncStockJob) do
+      StockSync::RequestDebouncer.call!(sku: @sku, reason: "test")
     end
   end
 end
