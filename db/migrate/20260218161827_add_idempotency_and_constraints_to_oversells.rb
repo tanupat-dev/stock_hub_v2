@@ -21,7 +21,7 @@ class AddIdempotencyAndConstraintsToOversells < ActiveRecord::Migration[8.0]
 
     # ---- oversell_allocations ----
     add_index :oversell_allocations,
-              [:oversell_incident_id, :order_line_id],
+              [ :oversell_incident_id, :order_line_id ],
               unique: true,
               name: "uniq_oversell_alloc_incident_line"
   end

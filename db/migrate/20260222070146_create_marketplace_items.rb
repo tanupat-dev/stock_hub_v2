@@ -18,13 +18,13 @@ class CreateMarketplaceItems < ActiveRecord::Migration[8.0]
     end
 
     add_index :marketplace_items,
-      [:shop_id, :external_variant_id],
+      [ :shop_id, :external_variant_id ],
       unique: true,
       where: "external_variant_id IS NOT NULL",
       name: "uniq_marketplace_variant"
 
     add_index :marketplace_items,
-      [:shop_id, :external_sku],
+      [ :shop_id, :external_sku ],
       where: "external_sku IS NOT NULL",
       name: "index_marketplace_items_on_sku"
   end

@@ -75,13 +75,13 @@ class PollTiktokOrdersJobTest < ActiveSupport::TestCase
 
         if page_token.nil?
           {
-            rows: [{ "id" => "O1", "update_time" => t1 }],
+            rows: [ { "id" => "O1", "update_time" => t1 } ],
             next_page_token: "tok1"
           }
         else
           assert_equal "tok1", page_token
           {
-            rows: [{ "id" => "O2", "update_time" => t2 }],
+            rows: [ { "id" => "O2", "update_time" => t2 } ],
             next_page_token: nil
           }
         end

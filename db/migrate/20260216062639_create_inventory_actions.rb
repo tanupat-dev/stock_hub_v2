@@ -13,7 +13,7 @@ class CreateInventoryActions < ActiveRecord::Migration[8.0]
     end
 
     add_index :inventory_actions, :idempotency_key, unique: true
-    add_index :inventory_actions, [:sku_id, :created_at]
+    add_index :inventory_actions, [ :sku_id, :created_at ]
     add_check_constraint :inventory_actions, "quantity > 0", name: "chk_inventory_action_qty_positive"
   end
 end

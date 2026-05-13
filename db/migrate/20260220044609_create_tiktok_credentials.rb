@@ -11,7 +11,7 @@ class CreateTiktokCredentials < ActiveRecord::Migration[8.0]
       t.text    :access_token, null: false
       t.datetime :access_token_expires_at, null: false
 
-      t.text    :refresh_token, null: false
+      t.text :refresh_token, null: false
       t.datetime :refresh_token_expires_at, null: false
 
       t.jsonb   :granted_scopes, default: [], null: false

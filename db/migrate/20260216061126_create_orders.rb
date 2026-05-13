@@ -20,10 +20,10 @@ class CreateOrders < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :orders, [:channel, :shop_id, :external_order_id],
+    add_index :orders, [ :channel, :shop_id, :external_order_id ],
               unique: true, name: "uniq_orders_channel_shop_external"
 
-    add_index :orders, [:shop_id, :updated_time_external]
-    add_index :orders, [:channel, :status]
+    add_index :orders, [ :shop_id, :updated_time_external ]
+    add_index :orders, [ :channel, :status ]
   end
 end

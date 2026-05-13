@@ -63,7 +63,7 @@ class PollCatalogJobTest < ActiveJob::TestCase
 
     fake_resp = {
       ok: true,
-      items: [{ external_sku: "SKU001" }],
+      items: [ { external_sku: "SKU001" } ],
       fetched_products: 1,
       fetched_variants: 1,
       pages: 1,
@@ -72,7 +72,7 @@ class PollCatalogJobTest < ActiveJob::TestCase
 
     Marketplace::Tiktok::Catalog::List.stub(:call!, fake_resp) do
       Catalog::UpsertMarketplaceItems.stub(:call!, 1) do
-        assert_enqueued_with(job: SyncSkuMasterJob, args: [shop.id, { enqueue_sync_stock: true }]) do
+        assert_enqueued_with(job: SyncSkuMasterJob, args: [ shop.id, { enqueue_sync_stock: true } ]) do
           PollCatalogJob.perform_now(shop.id, enqueue_sync_stock: true)
         end
       end
@@ -84,7 +84,7 @@ class PollCatalogJobTest < ActiveJob::TestCase
 
     fake_resp = {
       ok: true,
-      items: [{ external_sku: "SKU001" }],
+      items: [ { external_sku: "SKU001" } ],
       fetched_products: 1,
       fetched_variants: 1,
       pages: 1,
@@ -94,7 +94,7 @@ class PollCatalogJobTest < ActiveJob::TestCase
     Marketplace::Lazada::Catalog::List.define_singleton_method(:call!) { |**| fake_resp }
 
     Catalog::UpsertMarketplaceItems.stub(:call!, 1) do
-      assert_enqueued_with(job: SyncSkuMasterJob, args: [shop.id, { enqueue_sync_stock: true }]) do
+      assert_enqueued_with(job: SyncSkuMasterJob, args: [ shop.id, { enqueue_sync_stock: true } ]) do
         PollCatalogJob.perform_now(shop.id, enqueue_sync_stock: true)
       end
     end

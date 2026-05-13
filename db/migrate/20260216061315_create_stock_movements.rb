@@ -9,6 +9,6 @@ class CreateStockMovements < ActiveRecord::Migration[8.0]
     end
 
     add_index :stock_movements, :reason
-    add_index :stock_movements, [:sku_id, :created_at]
+    add_index :stock_movements, [ :sku_id, :created_at ]
   end
 end

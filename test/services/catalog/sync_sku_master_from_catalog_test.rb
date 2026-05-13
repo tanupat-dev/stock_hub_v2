@@ -10,7 +10,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
   end
 
   test "does not auto-create SKU: missing sku codes are skipped and no mapping is created" do
-    items = [{ "external_sku" => "SKU_NOT_EXIST", "external_variant_id" => "V1" }]
+    items = [ { "external_sku" => "SKU_NOT_EXIST", "external_variant_id" => "V1" } ]
 
     assert_difference("Sku.count", 0) do
       assert_difference("SkuMapping.count", 0) do
@@ -26,14 +26,14 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "creates sku-key mapping when SKU exists and variant_id is blank" do
     sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 3)
-    items = [{ "external_sku" => "SKU1", "external_variant_id" => nil }]
+    items = [ { "external_sku" => "SKU1", "external_variant_id" => nil } ]
 
     assert_difference("SkuMapping.count", 1) do
       stats = Catalog::SyncSkuMasterFromCatalog.call!(shop: @shop, items: items, dry_run: false)
       assert_equal 1, stats[:upserted_sku_key]
       assert_equal 0, stats[:upserted_variant_key]
       assert_equal 1, stats[:mapping_changed]
-      assert_equal [sku.id], stats[:affected_sku_ids]
+      assert_equal [ sku.id ], stats[:affected_sku_ids]
     end
 
     m = SkuMapping.find_by!(channel: "tiktok", shop_id: @shop.id, external_sku: "SKU1")
@@ -43,14 +43,14 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "creates variant present => STILL ONLY 1 ROW (sku-key), and is findable by variant_id" do
     sku = Sku.create!(code: "SKU2", barcode: "B2", buffer_quantity: 3)
-    items = [{ "external_sku" => "SKU2", "external_variant_id" => "V-2" }]
+    items = [ { "external_sku" => "SKU2", "external_variant_id" => "V-2" } ]
 
     assert_difference("SkuMapping.count", 1) do
       stats = Catalog::SyncSkuMasterFromCatalog.call!(shop: @shop, items: items, dry_run: false)
       assert_equal 1, stats[:upserted_sku_key]
       assert_equal 0, stats[:upserted_variant_key]
       assert_equal 1, stats[:mapping_changed]
-      assert_equal [sku.id], stats[:affected_sku_ids]
+      assert_equal [ sku.id ], stats[:affected_sku_ids]
     end
 
     m = SkuMapping.find_by!(channel: "tiktok", shop_id: @shop.id, external_sku: "SKU2")
@@ -74,7 +74,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
       sku_id: sku_a.id
     )
 
-    items = [{ "external_sku" => "B", "external_variant_id" => "V-CONFLICT" }]
+    items = [ { "external_sku" => "B", "external_variant_id" => "V-CONFLICT" } ]
 
     assert_no_difference("SkuMapping.count") do
       stats = Catalog::SyncSkuMasterFromCatalog.call!(shop: @shop, items: items, dry_run: false)
@@ -90,7 +90,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "dry_run: computes stats but does not write and does not enqueue" do
     sku = Sku.create!(code: "SKU3", barcode: "B3", buffer_quantity: 3)
-    items = [{ "external_sku" => "SKU3", "external_variant_id" => "V-3" }]
+    items = [ { "external_sku" => "SKU3", "external_variant_id" => "V-3" } ]
 
     assert_no_difference("SkuMapping.count") do
       assert_no_enqueued_jobs do
@@ -102,7 +102,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
         )
 
         assert_equal 1, stats[:mapping_changed]
-        assert_equal [sku.id], stats[:affected_sku_ids]
+        assert_equal [ sku.id ], stats[:affected_sku_ids]
         assert_equal 0, stats[:upserted_sku_key]
         assert_equal 0, stats[:upserted_variant_key]
         assert_equal 0, stats[:enqueued_sync_stock]
@@ -112,7 +112,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "enqueue_sync_stock: enqueues SyncStockJob only when mapping changes, not on second run" do
     sku = Sku.create!(code: "SKU4", barcode: "B4", buffer_quantity: 3)
-    items = [{ "external_sku" => "SKU4", "external_variant_id" => "V-4" }]
+    items = [ { "external_sku" => "SKU4", "external_variant_id" => "V-4" } ]
 
     clear_enqueued_jobs
 
@@ -165,7 +165,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
       assert_equal 1, stats[:candidate]
       assert_equal 1, stats[:upserted_sku_key]
       assert_equal 0, stats[:upserted_variant_key]
-      assert_equal [sku.id], stats[:affected_sku_ids]
+      assert_equal [ sku.id ], stats[:affected_sku_ids]
     end
 
     m = SkuMapping.find_by!(channel: "tiktok", shop_id: @shop.id, external_sku: "SKU5")

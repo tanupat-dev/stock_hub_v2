@@ -12,7 +12,7 @@ module Marketplace
           @shop = shop
           @update_time_ge = update_time_ge.to_i
           @update_time_lt = update_time_lt.to_i
-          @page_size = [[page_size.to_i, 1].max, 100].min
+          @page_size = [ [ page_size.to_i, 1 ].max, 100 ].min
           @page_token = page_token
         end
 

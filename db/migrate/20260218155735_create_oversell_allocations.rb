@@ -9,7 +9,7 @@ class CreateOversellAllocations < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :oversell_allocations, [:sku_id, :order_line_id]
+    add_index :oversell_allocations, [ :sku_id, :order_line_id ]
     add_check_constraint :oversell_allocations, "quantity > 0", name: "chk_oversell_alloc_qty_positive"
   end
 end

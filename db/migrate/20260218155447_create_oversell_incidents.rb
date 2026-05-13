@@ -10,6 +10,6 @@ class CreateOversellIncidents < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :oversell_incidents, [:sku_id, :status]
+    add_index :oversell_incidents, [ :sku_id, :status ]
   end
 end

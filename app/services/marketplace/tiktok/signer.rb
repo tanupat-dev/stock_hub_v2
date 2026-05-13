@@ -19,7 +19,7 @@ module Marketplace
           filtered.keys
             .map(&:to_s)
             .sort
-            .map { |k| [k, filtered[k] || filtered[k.to_sym]] }
+            .map { |k| [ k, filtered[k] || filtered[k.to_sym] ] }
 
         # ✅ step2: concat {key}{value}
         param_string =

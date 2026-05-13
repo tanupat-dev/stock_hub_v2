@@ -31,6 +31,6 @@ sku2 = Sku.find_or_create_by!(code: "ADDA-001") do |s|
   s.buffer_quantity = 3
 end
 
-[sku1, sku2].each do |sku|
+[ sku1, sku2 ].each do |sku|
   sku.inventory_balance || sku.create_inventory_balance!(on_hand: 10, reserved: 0)
 end

@@ -10,9 +10,9 @@ class CreateSkuMappings < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :sku_mappings, [:channel, :shop_id, :external_sku],
+    add_index :sku_mappings, [ :channel, :shop_id, :external_sku ],
               unique: true, name: "uniq_sku_mappings"
 
-    add_index :sku_mappings, [:sku_id, :shop_id]
+    add_index :sku_mappings, [ :sku_id, :shop_id ]
   end
 end

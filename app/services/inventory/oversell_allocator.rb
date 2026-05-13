@@ -42,7 +42,7 @@ module Inventory
         outstanding = r.sum_reserve.to_i - r.sum_release.to_i - r.sum_commit.to_i
         next if outstanding <= 0
 
-        take = [outstanding, remaining].min
+        take = [ outstanding, remaining ].min
         allocations << { order_line_id: r.order_line_id, qty: take }
         remaining -= take
       end

@@ -13,7 +13,7 @@ class CreateShops < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :shops, [:channel, :shop_code], unique: true
-    add_index :shops, [:channel, :active]
+    add_index :shops, [ :channel, :shop_code ], unique: true
+    add_index :shops, [ :channel, :active ]
   end
 end

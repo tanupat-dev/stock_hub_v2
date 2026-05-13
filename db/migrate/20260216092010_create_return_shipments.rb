@@ -15,7 +15,7 @@ class CreateReturnShipments < ActiveRecord::Migration[8.0]
       t.string  :status_store, null: false, default: "pending_scan" # pending_scan / received_scanned
 
       t.datetime :last_seen_at_external
-      t.jsonb   :meta, null: false, default: {}
+      t.jsonb :meta, null: false, default: {}
 
       t.timestamps
     end

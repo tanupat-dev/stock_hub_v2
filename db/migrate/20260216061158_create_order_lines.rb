@@ -19,7 +19,7 @@ class CreateOrderLines < ActiveRecord::Migration[8.0]
     end
 
     add_index :order_lines, :idempotency_key, unique: true
-    add_index :order_lines, [:order_id, :external_line_id],
+    add_index :order_lines, [ :order_id, :external_line_id ],
               unique: true,
               where: "external_line_id IS NOT NULL",
               name: "uniq_order_lines_when_external_line"
