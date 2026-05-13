@@ -35,7 +35,7 @@ gem "rubyXL"
 gem "caxlsx"
 
 group :test do
-  gem "minitest", "~> 5.25"
+  gem "minitest", "~> 6.0"
   gem "capybara"
   gem "selenium-webdriver"
 end
