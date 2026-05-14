@@ -110,6 +110,13 @@ production:
     args: []
     schedule: every 2 hours
 
+  repair_stuck_reserves:
+    class: RepairStuckReservesJob
+    queue: default
+    args:
+      - { older_than_hours: 1 }
+    schedule: every 2 hours
+
 development:
   poll_tiktok_all_shops:
     class: PollTiktokAllShopsJob
