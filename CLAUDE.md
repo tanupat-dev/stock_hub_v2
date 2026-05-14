@@ -114,4 +114,8 @@ Uses Hotwire (Turbo + Stimulus) with Importmap — no webpack/bundler. Assets se
 
 ### Deployment
 
-Render.com: one web process (Puma + Thruster) and one SolidQueue worker, both from the same Docker image. Multi-database setup: separate PostgreSQL databases for primary, cache (SolidCache), queue (SolidQueue), and cable (SolidCable) in production.
+Hetzner VPS at `5.223.56.196` (Singapore). Three Docker Compose containers: `web` (Puma + Thruster), `worker` (SolidQueue), `db` (PostgreSQL). Domain `thailumlong.in.th` served via Nginx + SSL on the host.
+
+CI/CD: GitHub Actions builds the Docker image, pushes to `ghcr.io/tanupat-dev/stock_hub_v2:latest`, then deploys via SSH — pulls the new image and restarts `web` and `worker` with `docker compose up -d --no-deps`.
+
+Multi-database setup: separate PostgreSQL databases for primary, cache (SolidCache), queue (SolidQueue), and cable (SolidCable) in production.
