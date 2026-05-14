@@ -10,7 +10,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
   end
 
   test "does not auto-create SKU: missing sku codes are skipped and no mapping is created" do
-    items = [ { "external_sku" => "SKU_NOT_EXIST", "external_variant_id" => "V1" } ]
+    items = [ { "external_sku" => "SKU_NOT_EXIST", "external_variant_id" => "V1", "status" => "ACTIVATE" } ]
 
     assert_difference("Sku.count", 0) do
       assert_difference("SkuMapping.count", 0) do
@@ -26,7 +26,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "creates sku-key mapping when SKU exists and variant_id is blank" do
     sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 3)
-    items = [ { "external_sku" => "SKU1", "external_variant_id" => nil } ]
+    items = [ { "external_sku" => "SKU1", "external_variant_id" => nil, "status" => "ACTIVATE" } ]
 
     assert_difference("SkuMapping.count", 1) do
       stats = Catalog::SyncSkuMasterFromCatalog.call!(shop: @shop, items: items, dry_run: false)
@@ -43,7 +43,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "creates variant present => STILL ONLY 1 ROW (sku-key), and is findable by variant_id" do
     sku = Sku.create!(code: "SKU2", barcode: "B2", buffer_quantity: 3)
-    items = [ { "external_sku" => "SKU2", "external_variant_id" => "V-2" } ]
+    items = [ { "external_sku" => "SKU2", "external_variant_id" => "V-2", "status" => "ACTIVATE" } ]
 
     assert_difference("SkuMapping.count", 1) do
       stats = Catalog::SyncSkuMasterFromCatalog.call!(shop: @shop, items: items, dry_run: false)
@@ -74,7 +74,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
       sku_id: sku_a.id
     )
 
-    items = [ { "external_sku" => "B", "external_variant_id" => "V-CONFLICT" } ]
+    items = [ { "external_sku" => "B", "external_variant_id" => "V-CONFLICT", "status" => "ACTIVATE" } ]
 
     assert_no_difference("SkuMapping.count") do
       stats = Catalog::SyncSkuMasterFromCatalog.call!(shop: @shop, items: items, dry_run: false)
@@ -90,7 +90,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "dry_run: computes stats but does not write and does not enqueue" do
     sku = Sku.create!(code: "SKU3", barcode: "B3", buffer_quantity: 3)
-    items = [ { "external_sku" => "SKU3", "external_variant_id" => "V-3" } ]
+    items = [ { "external_sku" => "SKU3", "external_variant_id" => "V-3", "status" => "ACTIVATE" } ]
 
     assert_no_difference("SkuMapping.count") do
       assert_no_enqueued_jobs do
@@ -112,7 +112,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
   test "enqueue_sync_stock: enqueues SyncStockJob only when mapping changes, not on second run" do
     sku = Sku.create!(code: "SKU4", barcode: "B4", buffer_quantity: 3)
-    items = [ { "external_sku" => "SKU4", "external_variant_id" => "V-4" } ]
+    items = [ { "external_sku" => "SKU4", "external_variant_id" => "V-4", "status" => "ACTIVATE" } ]
 
     clear_enqueued_jobs
 
@@ -125,13 +125,12 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
 
     assert_equal 1, enqueued_jobs.size
     job = enqueued_jobs.first
-    assert_equal "SyncStockJob", job["job_class"]
+    assert_equal "DebouncedSyncStockJob", job["job_class"]
     assert_equal "sync_stock", job["queue_name"]
+    assert_equal sku.id, job["arguments"][0]
 
-    args = job["arguments"]
-    assert_equal sku.id, args[0]
-    assert_equal "sku_mapping_synced", args[1]["reason"]
-    assert_equal false, args[1]["force"]
+    req = StockSyncRequest.find_by!(sku_id: sku.id)
+    assert_equal "sku_mapping_synced", req.last_reason
 
     clear_enqueued_jobs
 
@@ -154,7 +153,7 @@ class Catalog::SyncSkuMasterFromCatalogTest < ActiveSupport::TestCase
       external_variant_id: "V-5",
       external_sku: "SKU5",
       title: "x",
-      status: "ACTIVE",
+      status: "ACTIVATE",
       available_stock: 10,
       raw_payload: {}
     )

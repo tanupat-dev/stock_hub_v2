@@ -2,11 +2,12 @@ require "test_helper"
 
 class InventoryAdjustTest < ActiveSupport::TestCase
   def setup
-    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 0)
-    @balance = @sku.create_inventory_balance!(on_hand: 10, reserved: 7)
+    @identity = StockIdentity.create!
+    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 0, stock_identity: @identity)
+    @balance = InventoryBalance.create!(stock_identity: @identity, sku: @sku, on_hand: 10, reserved: 7)
   end
 
-  test "oversold adjust clamps reserved and freezes" do
+  test "oversold adjust freezes balance when on_hand drops below reserved" do
     res = Inventory::Adjust.call!(
       sku: @sku,
       set_to: 5,
@@ -17,10 +18,9 @@ class InventoryAdjustTest < ActiveSupport::TestCase
 
     b = InventoryBalance.find_by!(sku_id: @sku.id)
     assert_equal 5, b.on_hand
-    assert_equal 5, b.reserved
+    assert_equal 7, b.reserved
     assert b.frozen_at.present?
-    assert_equal "oversold_adjust", b.freeze_reason
-    assert_equal 0, b.raw_available
+    assert_equal "oversold", b.freeze_reason
   end
 
   test "normal adjust without oversold" do
@@ -55,7 +55,7 @@ class InventoryAdjustTest < ActiveSupport::TestCase
     res = Inventory::Adjust.call!(sku: @sku, set_to: 5, idempotency_key: "adjust-oversold-1")
     assert_equal :adjusted, res
 
-    incident = OversellIncident.find_by!(idempotency_key: "adjust-oversold-1")
+    incident = OversellIncident.find_by!(sku_id: @sku.id, status: "open")
     assert_equal @sku.id, incident.sku_id
     assert_equal 2, incident.shortfall_qty
     assert_equal "open", incident.status

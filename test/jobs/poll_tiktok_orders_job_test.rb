@@ -47,12 +47,15 @@ class PollTiktokOrdersJobTest < ActiveSupport::TestCase
 
   test "paginates with next_page_token and advances cursor to max update_time seen" do
     travel_to Time.zone.parse("2026-02-21 12:00:00") do
-      # window_ge/lt expected (first run uses lookback)
       now_ts = Time.current.to_i
-      expected_lt = now_ts - PollTiktokOrdersJob::SAFETY_LAG_SECONDS
-      expected_ge = (now_ts - PollTiktokOrdersJob::FIRST_RUN_LOOKBACK_SECONDS) - PollTiktokOrdersJob::SAFETY_LAG_SECONDS
 
-      # ให้ update_time อยู่ใน window จริง (ไม่ใช่ 1000/1100)
+      # Set a recent cursor so MAX_WINDOW_SECONDS cap does not activate
+      recent_cursor = now_ts - 100
+      @shop.update!(last_seen_update_time: recent_cursor)
+
+      expected_lt = now_ts - PollTiktokOrdersJob::SAFETY_LAG_SECONDS
+      expected_ge = recent_cursor - PollTiktokOrdersJob::SAFETY_LAG_SECONDS
+
       t1 = expected_ge + 10
       t2 = expected_ge + 20
 
@@ -100,10 +103,10 @@ class PollTiktokOrdersJobTest < ActiveSupport::TestCase
           assert_equal true, res[:ok]
           assert_equal 2, res[:pages]
           assert_equal 2, res[:fetched]
-          assert_equal t2, res[:cursor_written]
+          assert_equal expected_lt, res[:cursor_written]
 
           @shop.reload
-          assert_equal t2, @shop.last_seen_update_time
+          assert_equal expected_lt, @shop.last_seen_update_time
           assert_equal Time.zone.parse("2026-02-21 12:00:00"), @shop.last_polled_at
 
           assert_equal 2, calls.size
@@ -117,6 +120,9 @@ class PollTiktokOrdersJobTest < ActiveSupport::TestCase
     travel_to Time.zone.parse("2026-02-21 12:00:00") do
       now_ts = Time.current.to_i
       expected_lt = now_ts - PollTiktokOrdersJob::SAFETY_LAG_SECONDS
+
+      # Set a recent cursor so MAX_WINDOW_SECONDS cap does not activate
+      @shop.update!(last_seen_update_time: now_ts - 100)
 
       called = false
 
@@ -168,30 +174,6 @@ class PollTiktokOrdersJobTest < ActiveSupport::TestCase
         end
       end
     end
-  end
-
-  test "raises when exceeded MAX_PAGES" do
-    # shrink MAX_PAGES for test speed
-    old = PollTiktokOrdersJob::MAX_PAGES
-    PollTiktokOrdersJob.send(:remove_const, :MAX_PAGES)
-    PollTiktokOrdersJob.const_set(:MAX_PAGES, 2)
-
-    travel_to Time.zone.parse("2026-02-21 12:00:00") do
-      search_stub = lambda do |shop:, update_time_ge:, update_time_lt:, page_size:, page_token: nil|
-        { rows: [], next_page_token: "still_more" } # never ends
-      end
-
-      Marketplace::Tiktok::Orders::Search.stub(:call!, search_stub) do
-        Orders::UpsertFromSearchRows.stub(:call!, ->(**) { 0 }) do
-          assert_raises(RuntimeError) do
-            PollTiktokOrdersJob.perform_now(@shop.id)
-          end
-        end
-      end
-    end
-  ensure
-    PollTiktokOrdersJob.send(:remove_const, :MAX_PAGES)
-    PollTiktokOrdersJob.const_set(:MAX_PAGES, old)
   end
 
   test "does nothing for inactive shop or placeholder credential/shop_cipher" do

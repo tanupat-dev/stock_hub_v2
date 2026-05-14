@@ -1,18 +1,18 @@
 require "test_helper"
-require "ostruct"
 
 class Pos::OversellsControllerTest < ActionDispatch::IntegrationTest
   def setup
     @pos_key = "test-pos-key"
     @shop = Shop.create!(channel: "tiktok", shop_code: "tt1", name: "TT", active: true)
-    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 0)
-    @sku.create_inventory_balance!(on_hand: 10, reserved: 0)
+    @identity = StockIdentity.create!
+    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 0, stock_identity: @identity)
+    InventoryBalance.create!(stock_identity: @identity, sku: @sku, on_hand: 10, reserved: 0)
   end
 
   def with_pos_credentials
     app = Rails.application
     original = app.method(:credentials)
-    fake = OpenStruct.new(pos_api_key: @pos_key)
+    fake = { pos: { key: @pos_key } }
     app.define_singleton_method(:credentials) { fake }
     yield
   ensure

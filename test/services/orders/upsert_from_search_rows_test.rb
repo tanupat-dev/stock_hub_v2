@@ -5,8 +5,9 @@ class OrdersUpsertFromSearchRowsTest < ActiveSupport::TestCase
   def setup
     suffix = SecureRandom.hex(4)
 
-    @sku = Sku.create!(code: "SKU1_#{suffix}", barcode: "B1_#{suffix}", buffer_quantity: 0)
-    @sku.create_inventory_balance!(on_hand: 10, reserved: 0)
+    @identity = StockIdentity.create!
+    @sku = Sku.create!(code: "SKU1_#{suffix}", barcode: "B1_#{suffix}", buffer_quantity: 0, stock_identity: @identity)
+    InventoryBalance.create!(stock_identity: @identity, sku: @sku, on_hand: 10, reserved: 0)
 
     @app = TiktokApp.create!(
       code: "tiktok_1_#{suffix}",
@@ -49,11 +50,11 @@ class OrdersUpsertFromSearchRowsTest < ActiveSupport::TestCase
     )
   end
 
-  test "polling same UNPAID order twice does not reserve twice" do
+  test "polling same AWAITING_FULFILLMENT order twice does not reserve twice" do
     rows = [
       {
         "id" => "O1",
-        "status" => "UNPAID",
+        "status" => "AWAITING_FULFILLMENT",
         "update_time" => 100,
         "create_time" => 90,
         "line_items" => [
@@ -74,7 +75,7 @@ class OrdersUpsertFromSearchRowsTest < ActiveSupport::TestCase
 
     b = @sku.inventory_balance.reload
 
-    # ต้อง reserve แค่ครั้งเดียว
+    # ต้อง reserve แค่ครั้งเดียว (AWAITING_FULFILLMENT จะ reserve, UNPAID ไม่ reserve)
     assert_equal 1, b.reserved
 
     # inventory_actions ไม่ควรมี idempotency ซ้ำ

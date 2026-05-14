@@ -3,8 +3,9 @@ require "test_helper"
 class OversellAllocatorTest < ActiveSupport::TestCase
   def setup
     @shop = Shop.create!(channel: "tiktok", shop_code: "tt1", name: "TT", active: true)
-    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 0)
-    @sku.create_inventory_balance!(on_hand: 10, reserved: 0)
+    @identity = StockIdentity.create!
+    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 0, stock_identity: @identity)
+    InventoryBalance.create!(stock_identity: @identity, sku: @sku, on_hand: 10, reserved: 0)
 
     @order1 = Order.create!(channel: "tiktok", shop: @shop, external_order_id: "O1", status: "paid")
     @line1  = OrderLine.create!(order: @order1, sku: @sku, quantity: 3, idempotency_key: "l1")

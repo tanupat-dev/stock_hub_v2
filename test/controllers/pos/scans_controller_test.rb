@@ -2,13 +2,13 @@
 
 require "test_helper"
 require "json"
-require "ostruct"
 require "stringio"
 
 class Pos::ScansControllerTest < ActionDispatch::IntegrationTest
   def setup
-    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 3)
-    @balance = @sku.create_inventory_balance!(on_hand: 2, reserved: 0)
+    @identity = StockIdentity.create!
+    @sku = Sku.create!(code: "SKU1", barcode: "B1", buffer_quantity: 3, stock_identity: @identity)
+    @balance = InventoryBalance.create!(stock_identity: @identity, sku: @sku, on_hand: 2, reserved: 0)
     @pos_key = "test-pos-key"
   end
 
@@ -16,7 +16,7 @@ class Pos::ScansControllerTest < ActionDispatch::IntegrationTest
     app = Rails.application
     original = app.method(:credentials)
 
-    fake = OpenStruct.new(pos_api_key: @pos_key)
+    fake = { pos: { key: @pos_key } }
 
     app.define_singleton_method(:credentials) { fake }
     yield
