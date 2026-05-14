@@ -125,7 +125,7 @@ class Orders::ApplyInventoryPolicyTest < ActiveSupport::TestCase
   test "returns missing_sku result when order line has no sku" do
     no_sku_line = OrderLine.create!(order: @order, sku_id: nil, quantity: 1, idempotency_key: "no-sku-line-1")
 
-    result = call_policy(line_actions: [{ order_line: no_sku_line, action: :reserve }])
+    result = call_policy(line_actions: [ { order_line: no_sku_line, action: :reserve } ])
 
     assert_equal :missing_sku, result[:results][0][:result]
     assert_equal no_sku_line.id, result[:results][0][:order_line_id]

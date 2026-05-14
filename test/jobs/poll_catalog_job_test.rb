@@ -51,5 +51,4 @@ class PollCatalogJobTest < ActiveJob::TestCase
 
     assert_equal 0, enqueued_jobs.size
   end
-
 end
